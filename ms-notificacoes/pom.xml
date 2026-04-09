@@ -15,8 +15,8 @@
     <artifactId>ms-notificacoes</artifactId>
     <name>Florinda Eats — Microsserviço de Notificações</name>
     <description>
-        Consumer de eventos Kafka. Dispara push/email/SMS.
-        Adicionado na Fase 2 — pom criado aqui para completude do monorepo.
+        Consumer de eventos Kafka. Processa e registra notificações
+        de pedidos, pagamentos e entregas. Java 21 LTS.
     </description>
 
     <dependencies>
@@ -28,13 +28,22 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
+
+        <!-- Kafka Consumer -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging-kafka</artifactId>
         </dependency>
+
+        <!-- Testes -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-junit5</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

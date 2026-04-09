@@ -1,6 +1,6 @@
-# Florinda Eats Quickstart (Catalogo + Pedidos + Pagamentos)
+# Florinda Eats Quickstart (Catalogo + Pedidos + Pagamentos + Notificacoes)
 
-Guia rapido para subir a infraestrutura local, iniciar os modulos e validar o fluxo no Swagger.
+Guia rapido para subir a infraestrutura local, iniciar os modulos da fase 2 e validar o fluxo no Swagger.
 
 ## 1) Pre-requisitos
 
@@ -108,6 +108,12 @@ mvn -pl ms-pedidos quarkus:dev
 mvn -pl ms-pagamentos quarkus:dev
 ```
 
+### Terminal D - ms-notificacoes (8084)
+
+```powershell
+mvn -pl ms-notificacoes quarkus:dev
+```
+
 ## 6) Swagger / Dev UI
 
 - Catalogo Swagger: `http://localhost:8082/swagger-ui`
@@ -116,6 +122,8 @@ mvn -pl ms-pagamentos quarkus:dev
 - Pedidos Dev UI: `http://localhost:8080/q/dev-ui`
 - Pagamentos Swagger: `http://localhost:8081/swagger-ui`
 - Pagamentos Dev UI: `http://localhost:8081/q/dev-ui`
+- Notificacoes Swagger: `http://localhost:8084/swagger-ui`
+- Notificacoes Dev UI: `http://localhost:8084/q/dev-ui`
 
 ## 7) Fluxo de teste sugerido no Swagger
 
@@ -198,7 +206,17 @@ Body do estorno:
 }
 ```
 
-## 8) Problemas comuns
+## 8) Validacao rapida da saga
+
+Depois de criar pedido em `ms-pedidos`, acompanhe:
+
+- logs de `ms-pagamentos` para `order.created`
+- logs de `ms-pedidos` para atualizacao por `payment.approved|payment.failed`
+- logs de `ms-notificacoes` para notificacoes dos topicos consumidos
+
+Referencia de fluxo completo: `SAGA-KAFKA.md`.
+
+## 9) Problemas comuns
 
 - `mvn : O termo 'mvn' nao e reconhecido`:
   - adicione no terminal atual: `$env:Path += ";C:\Users\marcu\tools\apache-maven-3.9.9\bin"`.
@@ -213,12 +231,28 @@ Body do estorno:
   - isso sozinho nao e erro; o Docker ainda esta baixando a imagem.
   - analise a proxima linha para ver se houve falha real de tag.
 
-## 9) Validacao rapida final
+## 10) Validacao rapida final
 
 ```powershell
 curl http://localhost:8082/q/health
 curl http://localhost:8080/q/health
 curl http://localhost:8081/q/health
+curl http://localhost:8084/q/health
 ```
 
-Se os tres retornarem `UP`, ambiente pronto para testes funcionais no Swagger.
+Se os quatro retornarem `UP`, ambiente pronto para testes funcionais no Swagger.
+
+## 11) Testes de integracao (fase 4)
+
+Atualmente existem cenarios em `testes-integracao/` para:
+
+- `ms-catalogo`
+- `ms-pedidos`
+- `ms-pagamentos`
+
+Objetivo da fase 4:
+
+- executar os testes de integracao antes de commit/pre-push
+- executar os testes no pipeline CI/CD como gate de merge
+
+Enquanto a integracao completa da suite no build raiz nao e finalizada, use os comandos do modulo para rodar os testes que ja estao mapeados no fluxo atual.
