@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.florinda</groupId>
+        <artifactId>florinda-eats</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ms-pedidos</artifactId>
+    <name>Florinda Eats — Microsserviço de Pedidos</name>
+    <description>
+        Criação e ciclo de vida de pedidos.
+        MySQL Reactive + Hibernate Reactive Panache + Kafka Producer + Flyway.
+    </description>
+
+    <dependencies>
+        <!-- REST Reactive -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+
+        <!-- ORM — Hibernate ORM Panache -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+
+        <!-- Flyway — requer JDBC para rodar migrações (não reactive) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-mysql</artifactId>
+        </dependency>
+
+        <!-- Kafka Producer — SmallRye Reactive Messaging -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-messaging-kafka</artifactId>
+        </dependency>
+
+        <!-- REST Client — consome ms-catalogo para validar restaurante -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client-jackson</artifactId>
+        </dependency>
+
+        <!-- Fault Tolerance — retry na chamada ao ms-catalogo -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+        </dependency>
+
+        <!-- Testes de integração -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-vertx</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

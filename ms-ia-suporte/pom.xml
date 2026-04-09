@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.florinda</groupId>
+        <artifactId>florinda-eats</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>ms-ia-suporte</artifactId>
+    <name>Florinda Eats — Agente IA de Suporte</name>
+    <description>
+        Agente conversacional com RAG (PgVector + LangChain4j) e MCP.
+        Implementado na Fase 3.
+    </description>
+
+    <properties>
+        <langchain4j.version>0.26.1</langchain4j.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+
+        <!-- LangChain4j Quarkus integration -->
+        <dependency>
+            <groupId>io.quarkiverse.langchain4j</groupId>
+            <artifactId>quarkus-langchain4j-ollama</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkiverse.langchain4j</groupId>
+            <artifactId>quarkus-langchain4j-pgvector</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- PostgreSQL para PgVector -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-flyway</artifactId>
+        </dependency>
+
+        <!-- Kafka Consumer — ingestão de eventos para RAG -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-messaging-kafka</artifactId>
+        </dependency>
+
+        <!-- Redis — memória de sessão do agente -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-redis-client</artifactId>
+        </dependency>
+
+        <!-- Testes -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

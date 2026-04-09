@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>br.com.florinda</groupId>
+        <artifactId>florinda-eats</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>mcp-florinda-server</artifactId>
+    <name>Florinda Eats - MCP Server</name>
+    <description>
+        Servidor MCP via SSE expondo tools de negocio para o agente IA.
+        getOrderStatus, cancelOrder, getRestaurantMenu. Implementado na Fase 3.
+    </description>
+
+    <properties>
+        <mcp.version>1.0.0.CR1</mcp.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+
+        <!-- MCP Server via SSE -->
+        <dependency>
+            <groupId>io.quarkiverse.mcp</groupId>
+            <artifactId>quarkus-mcp-server-sse</artifactId>
+            <version>${mcp.version}</version>
+        </dependency>
+
+        <!-- REST Client — chama ms-pedidos e ms-catalogo -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client-jackson</artifactId>
+        </dependency>
+
+        <!-- Fault Tolerance — retry nas chamadas aos microsserviços -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+        </dependency>
+
+        <!-- Testes -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

@@ -1,0 +1,224 @@
+# Florinda Eats Quickstart (Catalogo + Pedidos + Pagamentos)
+
+Guia rapido para subir a infraestrutura local, iniciar os modulos e validar o fluxo no Swagger.
+
+## 1) Pre-requisitos
+
+- Windows + PowerShell
+- Docker Desktop iniciado
+- Maven 3.9+ (`mvn -v`)
+- JDK 21 ativo no terminal
+
+## 2) Ajustar Java e Maven no terminal atual
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-21.0.10.7-hotspot"
+$env:Path = "$env:JAVA_HOME\bin;" + (($env:Path -split ';' | Where-Object { $_ -and ($_ -notmatch 'Oracle\\Java\\javapath') -and ($_ -notmatch 'Java\\jdk-25') } | Select-Object -Unique) -join ';')
+
+# fallback para o Maven neste projeto
+if (-not (Get-Command mvn -ErrorAction SilentlyContinue)) {
+  $env:Path += ";C:\Users\marcu\tools\apache-maven-3.9.9\bin"
+}
+
+java -version
+mvn -v
+```
+
+## 3) Verificar Docker
+
+```powershell
+docker --version
+docker info --format '{{.ServerVersion}}'
+docker ps
+```
+
+## 4) Subir infraestrutura minima
+
+No primeiro uso, rode `docker run`. Se o container ja existir, use `docker start`.
+
+### 4.1 PostgreSQL (ms-catalogo) - porta 5433
+
+```powershell
+docker run --name florinda-postgres -e POSTGRES_DB=catalogo_db -e POSTGRES_USER=florinda -e POSTGRES_PASSWORD=florinda123 -p 5433:5432 -d postgres:16
+docker start florinda-postgres
+```
+
+### 4.2 Redis (ms-catalogo) - porta 6379
+
+```powershell
+docker run --name florinda-redis -p 6379:6379 -d redis:7
+docker start florinda-redis
+```
+
+### 4.3 MySQL (ms-pedidos) - porta 3307
+
+```powershell
+docker run --name florinda-mysql-pedidos -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=pedidos_db -e MYSQL_USER=florinda -e MYSQL_PASSWORD=florinda123 -p 3307:3306 -d mysql:8.0
+docker start florinda-mysql-pedidos
+```
+
+### 4.4 MySQL (ms-pagamentos) - porta 3308
+
+```powershell
+docker run --name florinda-mysql-pagamentos -e MYSQL_ROOT_PASSWORD=root -e MYSQL_DATABASE=pagamentos_db -e MYSQL_USER=florinda -e MYSQL_PASSWORD=florinda123 -p 3308:3306 -d mysql:8.0
+docker start florinda-mysql-pagamentos
+```
+
+### 4.5 Kafka (eventos entre pedidos e pagamentos) - porta 9092
+
+```powershell
+docker run --name florinda-kafka -p 9092:9092 -d `
+  -e KAFKA_NODE_ID=1 `
+  -e KAFKA_PROCESS_ROLES=broker,controller `
+  -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 `
+  -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092 `
+  -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER `
+  -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT `
+  -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@localhost:9093 `
+  -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 `
+  -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 `
+  -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 `
+  -e KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0 `
+  apache/kafka:3.9.0
+
+docker start florinda-kafka
+```
+
+## 5) Subir os modulos (terminais separados)
+
+```powershell
+Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
+```
+
+### Terminal A - ms-catalogo (8082)
+
+```powershell
+mvn -pl ms-catalogo quarkus:dev
+```
+
+### Terminal B - ms-pedidos (8080)
+
+```powershell
+mvn -pl ms-pedidos quarkus:dev
+```
+
+### Terminal C - ms-pagamentos (8081)
+
+```powershell
+mvn -pl ms-pagamentos quarkus:dev
+```
+
+## 6) Swagger / Dev UI
+
+- Catalogo Swagger: `http://localhost:8082/swagger-ui`
+- Catalogo Dev UI: `http://localhost:8082/q/dev-ui`
+- Pedidos Swagger: `http://localhost:8080/swagger-ui`
+- Pedidos Dev UI: `http://localhost:8080/q/dev-ui`
+- Pagamentos Swagger: `http://localhost:8081/swagger-ui`
+- Pagamentos Dev UI: `http://localhost:8081/q/dev-ui`
+
+## 7) Fluxo de teste sugerido no Swagger
+
+### 7.1 Catalogo - criar restaurante
+
+No `ms-catalogo` (`POST /v1/restaurantes`):
+
+```json
+{
+  "nome": "Churrascaria Florinda",
+  "descricao": "Carnes na brasa",
+  "categoria": "Churrasco",
+  "telefone": "88999999999",
+  "email": "contato@florinda.com",
+  "endereco": {
+    "logradouro": "Rua das Flores",
+    "numero": "10",
+    "bairro": "Centro",
+    "cidade": "Juazeiro do Norte",
+    "uf": "CE",
+    "cep": "63000-000"
+  },
+  "horarioAbertura": "11:00:00",
+  "horarioFechamento": "23:00:00"
+}
+```
+
+Copie o `id` retornado e abra o restaurante com `PUT /v1/restaurantes/{id}/abrir`.
+
+### 7.2 Pedidos - criar pedido
+
+No `ms-pedidos` (`POST /v1/pedidos`):
+
+```json
+{
+  "clienteId": "11111111-0000-0000-0000-000000000001",
+  "restauranteId": "COLE_AQUI_O_ID_DO_RESTAURANTE",
+  "itens": [
+    {
+      "itemId": "c1000000-0000-0000-0000-000000000001",
+      "nomeItem": "Picanha na brasa",
+      "precoUnitario": 89.90,
+      "quantidade": 1
+    }
+  ],
+  "observacao": "Sem cebola",
+  "enderecoEntrega": "Rua das Flores, 10"
+}
+```
+
+Copie o `id` do pedido.
+
+### 7.3 Pagamentos - validar processamento por evento
+
+No `ms-pagamentos`, consulte `GET /v1/pagamentos/pedido/{pedidoId}` usando o id do pedido criado.
+
+### 7.4 Pagamentos - fluxo manual (admin/teste)
+
+No `ms-pagamentos` (`POST /v1/pagamentos`):
+
+```json
+{
+  "pedidoId": "11111111-1111-1111-1111-111111111111",
+  "clienteId": "22222222-2222-2222-2222-222222222222",
+  "valor": 49.90,
+  "metodo": "PIX"
+}
+```
+
+Depois valide:
+
+- `GET /v1/pagamentos/{id}`
+- `POST /v1/pagamentos/{id}/estorno`
+
+Body do estorno:
+
+```json
+{
+  "motivo": "Cancelamento solicitado pelo cliente"
+}
+```
+
+## 8) Problemas comuns
+
+- `mvn : O termo 'mvn' nao e reconhecido`:
+  - adicione no terminal atual: `$env:Path += ";C:\Users\marcu\tools\apache-maven-3.9.9\bin"`.
+  - alternativa: `& "C:\Users\marcu\tools\apache-maven-3.9.9\bin\mvn.cmd" -pl ms-catalogo quarkus:dev`.
+- `Connection refused` no startup:
+  - confira se os containers corretos estao ativos (`docker ps`).
+  - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka).
+- `FATAL: password authentication failed` / `Access denied`:
+  - usuario/senha do app nao batem com o container atual.
+  - remova e recrie o container com as credenciais do quickstart.
+- `Unable to find image '... locally'` ao subir container:
+  - isso sozinho nao e erro; o Docker ainda esta baixando a imagem.
+  - analise a proxima linha para ver se houve falha real de tag.
+
+## 9) Validacao rapida final
+
+```powershell
+curl http://localhost:8082/q/health
+curl http://localhost:8080/q/health
+curl http://localhost:8081/q/health
+```
+
+Se os tres retornarem `UP`, ambiente pronto para testes funcionais no Swagger.
