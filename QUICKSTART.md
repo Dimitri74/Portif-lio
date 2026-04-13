@@ -90,6 +90,34 @@ docker start florinda-kafka
 Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
 ```
 
+Alternativa rapida (infra + opcionalmente modulos) com script:
+
+```powershell
+# apenas validar pre-requisitos e garantir containers
+.\dev-up.ps1
+
+# garantir containers, limpar portas dos modulos e abrir 4 terminais com quarkus:dev
+.\dev-up.ps1 -StartModules -KillPorts
+
+# igual ao comando acima, mas aguardando /q/health e falhando se algum modulo nao subir
+.\dev-up.ps1 -StartModules -KillPorts -WaitForHealth
+
+# se algum container estiver corrompido/travado, recrie tudo da infra
+.\dev-up.ps1 -RecreateContainers
+```
+
+Se algum modulo falhar com porta em uso, rode antes:
+
+```powershell
+netstat -ano | findstr :8080
+netstat -ano | findstr :8081
+netstat -ano | findstr :8082
+netstat -ano | findstr :8084
+
+# mate o PID em LISTENING da porta que estiver ocupada
+taskkill /PID <pid> /F
+```
+
 ### Terminal A - ms-catalogo (8082)
 
 ```powershell
@@ -224,9 +252,20 @@ Referencia de fluxo completo: `SAGA-KAFKA.md`.
 - `Connection refused` no startup:
   - confira se os containers corretos estao ativos (`docker ps`).
   - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka).
+- `[ERROR] Failed to execute goal ... quarkus-maven-plugin:...:dev`:
+  - geralmente e erro secundario: o app caiu antes (porta ocupada, banco indisponivel, credencial incorreta) ou o processo foi interrompido.
+  - verifique conflito de porta: `netstat -ano | findstr :8080` (troque para `8081`, `8082`, `8084` conforme o modulo).
+  - finalize o PID conflitante: `taskkill /PID <pid> /F` e suba novamente.
+- `dev-up` terminou, mas modulo ficou offline:
+  - o script apenas abre os terminais; se o Quarkus falhar no startup, a porta nao sobe.
+  - rode com `-WaitForHealth` para validar automaticamente e ver quais portas ficaram offline.
+  - evite rodar varias vezes seguidas sem fechar os terminais antigos; isso gera conflito de porta no bind final.
 - `FATAL: password authentication failed` / `Access denied`:
   - usuario/senha do app nao batem com o container atual.
   - remova e recrie o container com as credenciais do quickstart.
+- `Failed to start container '...'` no `dev-up.ps1`:
+  - agora o script mostra diagnostico do Docker (`inspect` e `logs`).
+  - para recuperar rapidamente, rode `.\dev-up.ps1 -RecreateContainers`.
 - `Unable to find image '... locally'` ao subir container:
   - isso sozinho nao e erro; o Docker ainda esta baixando a imagem.
   - analise a proxima linha para ver se houve falha real de tag.
