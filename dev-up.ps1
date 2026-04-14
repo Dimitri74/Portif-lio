@@ -6,7 +6,9 @@ param(
     [switch]$RecreateContainers,
     [switch]$WaitForHealth,
     [switch]$PullModels,
-    [int]$HealthTimeoutSec = 180
+    # Omite ms-ia-suporte e mcp-florinda-server (modulos pesados que precisam do Ollama)
+    [switch]$SkipAI,
+    [int]$HealthTimeoutSec = 360
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,26 +20,75 @@ function Write-Step {
     Write-Host "[dev-up] $Message" -ForegroundColor Cyan
 }
 
+function Get-TrimmedFileContent {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return ""
+    }
+
+    return ((Get-Content $Path -Raw -ErrorAction SilentlyContinue) -as [string]).Trim()
+}
+
+function Invoke-ExternalDetailed {
+    param(
+        [string]$Command,
+        [string[]]$Arguments,
+        [switch]$Quiet
+    )
+
+    $display = "$Command $($Arguments -join ' ')"
+    if ($DryRun) {
+        Write-Host "[dry-run] $display" -ForegroundColor Yellow
+        return [pscustomobject]@{
+            ExitCode = 0
+            StdOut   = ""
+            StdErr   = ""
+            Output   = @()
+        }
+    }
+
+    $stdoutPath = [System.IO.Path]::GetTempFileName()
+    $stderrPath = [System.IO.Path]::GetTempFileName()
+
+    try {
+        $process = Start-Process -FilePath $Command -ArgumentList $Arguments -NoNewWindow -Wait -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+
+        $stdout = Get-TrimmedFileContent -Path $stdoutPath
+        $stderr = Get-TrimmedFileContent -Path $stderrPath
+        $output = @()
+
+        if ($stdout) {
+            $output += ($stdout -split "`r?`n")
+        }
+
+        if ($stderr) {
+            $output += ($stderr -split "`r?`n")
+        }
+
+        if (-not $Quiet) {
+            $output | Where-Object { $_ -ne "" } | ForEach-Object { Write-Host $_ }
+        }
+
+        return [pscustomobject]@{
+            ExitCode = [int]$process.ExitCode
+            StdOut   = $stdout
+            StdErr   = $stderr
+            Output   = $output
+        }
+    }
+    finally {
+        Remove-Item $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-External {
     param(
         [string]$Command,
         [string[]]$Arguments
     )
 
-    $display = "$Command $($Arguments -join ' ')"
-    if ($DryRun) {
-        Write-Host "[dry-run] $display" -ForegroundColor Yellow
-        return 0
-    }
-
-    $output = & $Command @Arguments 2>&1
-    $exitCode = $LASTEXITCODE
-
-    if ($output) {
-        $output | ForEach-Object { Write-Host $_ }
-    }
-
-    return [int]$exitCode
+    return [int](Invoke-ExternalDetailed -Command $Command -Arguments $Arguments).ExitCode
 }
 
 function Get-ContainerDiagnostics {
@@ -76,6 +127,104 @@ function Require-Command {
 
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw "Command '$Name' not found in PATH. Open a terminal with Java/Maven/Docker configured and try again."
+    }
+}
+
+function Get-DockerDesktopPath {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'),
+        (Join-Path $env:LocalAppData 'Programs\Docker\Docker\Docker Desktop.exe')
+    )
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -and (Test-Path $candidate)) {
+            return $candidate
+        }
+    }
+
+    return $null
+}
+
+function Ensure-DockerDaemon {
+    if ($DryRun) {
+        Write-Host "[dry-run] docker info --format {{.ServerVersion}}" -ForegroundColor Yellow
+        return
+    }
+
+    $probeArgs = @("info", "--format", "{{.ServerVersion}}")
+    $probe = Invoke-ExternalDetailed -Command "docker" -Arguments $probeArgs -Quiet
+    if ($probe.ExitCode -eq 0) {
+        Write-Host "[dev-up] Docker daemon: OK (Server $($probe.StdOut))" -ForegroundColor DarkGreen
+        return
+    }
+
+    $originalError = ($probe.Output | Where-Object { $_ -and $_.Trim() } | Select-Object -First 2) -join ' '
+    if (-not $originalError) {
+        $originalError = 'docker info returned a non-zero exit code without details.'
+    }
+
+    $dockerDesktop = Get-DockerDesktopPath
+    if ($dockerDesktop) {
+        Write-Warning "Docker CLI encontrado, mas o daemon nao respondeu. Tentando iniciar o Docker Desktop..."
+
+        if (-not (Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)) {
+            Start-Process -FilePath $dockerDesktop | Out-Null
+            Start-Sleep -Seconds 3
+        }
+
+        $deadline = (Get-Date).AddSeconds(90)
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            $probe = Invoke-ExternalDetailed -Command "docker" -Arguments $probeArgs -Quiet
+            if ($probe.ExitCode -eq 0) {
+                Write-Host "[dev-up] Docker daemon: OK (Server $($probe.StdOut))" -ForegroundColor DarkGreen
+                return
+            }
+        }
+    }
+
+    throw @"
+Docker CLI encontrado, mas o daemon do Docker nao esta acessivel.
+
+Erro original:
+  $originalError
+
+Como resolver:
+  1. Abra o Docker Desktop e aguarde o status 'Engine running'.
+  2. Confirme com: docker info
+  3. Rode novamente: .\dev-up.ps1 -StartModules -KillPorts -WaitForHealth -SkipAI
+
+Se quiser apenas subir os modulos sem infraestrutura Docker ja neste momento,
+use: .\dev-up.ps1 -SkipInfra -StartModules -KillPorts -WaitForHealth -SkipAI
+"@
+}
+
+function Test-PageFile {
+    # Verifica se o pagefile do Windows e suficiente para 6 JVMs simultaneos.
+    # OOM/net.dll errors no startup quase sempre indicam pagefile pequeno.
+    if ($DryRun) { return }
+    try {
+        $pagefiles = Get-CimInstance -ClassName Win32_PageFileUsage -ErrorAction SilentlyContinue
+        if (-not $pagefiles) { return }
+        $totalMB = ($pagefiles | Measure-Object -Property AllocatedBaseSize -Sum).Sum
+        if ($totalMB -lt 4096) {
+            Write-Warning @"
+ATENCAO: Windows page file e pequeno (${totalMB} MB). Isso causa OOM/UnsatisfiedLinkError ao
+subir 6 JVMs simultaneamente. Sintomas: 'malloc failed', 'net.dll: pagefile too small'.
+
+SOLUCAO (uma vez, requer reinicializacao):
+  1. Painel de Controle -> Sistema -> Configuracoes Avancadas do Sistema
+  2. Aba 'Avancado' -> Desempenho -> Configuracoes -> Memoria Virtual
+  3. Selecione 'Tamanho gerenciado pelo sistema' -> OK -> Reiniciar
+  Ou: Tamanho inicial = 8192 MB, Tamanho maximo = 16384 MB
+"@
+        }
+        else {
+            Write-Host "[dev-up] Page file: ${totalMB} MB (OK)" -ForegroundColor DarkGreen
+        }
+    }
+    catch {
+        Write-Warning "Nao foi possivel verificar o page file: $($_.Exception.Message)"
     }
 }
 
@@ -173,13 +322,15 @@ function Stop-OldQuarkusShells {
 }
 
 function Start-Modules {
+    # JvmArgs limita o heap do processo Quarkus forked (via -Djvm.args).
+    # IsAI = $true marca modulos que dependem do Ollama (podem ser pulados com -SkipAI).
     $modules = @(
-        @{ Name = 'ms-catalogo'; Port = 8082 },
-        @{ Name = 'ms-pedidos'; Port = 8080 },
-        @{ Name = 'ms-pagamentos'; Port = 8081 },
-        @{ Name = 'ms-notificacoes'; Port = 8084 },
-        @{ Name = 'ms-ia-suporte'; Port = 8083 },
-        @{ Name = 'mcp-florinda-server'; Port = 8085 }
+        @{ Name = 'ms-catalogo';         Port = 8082; JvmArgs = '-Xmx280m -Xms64m'; IsAI = $false },
+        @{ Name = 'ms-pedidos';          Port = 8080; JvmArgs = '-Xmx280m -Xms64m'; IsAI = $false },
+        @{ Name = 'ms-pagamentos';       Port = 8081; JvmArgs = '-Xmx280m -Xms64m'; IsAI = $false },
+        @{ Name = 'ms-notificacoes';     Port = 8084; JvmArgs = '-Xmx200m -Xms64m'; IsAI = $false },
+        @{ Name = 'ms-ia-suporte';       Port = 8083; JvmArgs = '-Xmx384m -Xms64m'; IsAI = $true  },
+        @{ Name = 'mcp-florinda-server'; Port = 8085; JvmArgs = '-Xmx200m -Xms64m'; IsAI = $true  }
     )
 
     Write-Step "Opening PowerShell windows for Quarkus modules"
@@ -188,11 +339,32 @@ function Start-Modules {
         New-Item -ItemType Directory -Path $LogRoot | Out-Null
     }
 
+    $isFirst = $true
     foreach ($module in $modules) {
+        if ($SkipAI -and $module.IsAI) {
+            Write-Host "  Skipping $($module.Name) (flag -SkipAI ativo)" -ForegroundColor DarkGray
+            continue
+        }
+
+        # Escalonamento: aguarda 20s entre cada start para evitar pico de memoria simultaneo.
+        # Sem isso, 6 JVMs inicializando ao mesmo tempo esgotam o pagefile do Windows.
+        if (-not $isFirst -and -not $DryRun) {
+            Write-Host "  Aguardando 20s antes de subir o proximo modulo (evita OOM por pico de memoria)..." -ForegroundColor DarkGray
+            Start-Sleep -Seconds 20
+        }
+        $isFirst = $false
+
         $logPath = Join-Path $LogRoot ("{0}.log" -f $module.Name)
-        $cmd = "Set-Location '$RepoRoot'; mvn -pl $($module.Name) quarkus:dev *>&1 | Tee-Object -FilePath '$logPath'"
+        $jvmArgs = $module.JvmArgs
+
+        # MAVEN_OPTS limita o heap do proprio processo Maven (mvn.cmd).
+        # Sem isso, o launcher Maven pode falhar com malloc/OutOfMemoryError antes de
+        # sequer iniciar o Quarkus (comportamento observado em mcp-florinda-server).
+        # -Djvm.args limita o heap do processo Quarkus forked separadamente.
+        $cmd = "Set-Location '$RepoRoot'; `$env:MAVEN_OPTS='-Xmx256m -Xms64m'; mvn -pl $($module.Name) `"-Djvm.args=$jvmArgs`" quarkus:dev *>&1 | Tee-Object -FilePath '$logPath'"
+
         if ($DryRun) {
-            Write-Host "[dry-run] powershell -NoExit -Command \"$cmd\"" -ForegroundColor Yellow
+            Write-Host "[dry-run] powershell -NoExit -Command `"$cmd`"" -ForegroundColor Yellow
             continue
         }
 
@@ -202,7 +374,9 @@ function Start-Modules {
 }
 
 function Show-ModuleLogHints {
-    $modules = @('ms-catalogo', 'ms-pedidos', 'ms-pagamentos', 'ms-notificacoes', 'ms-ia-suporte', 'mcp-florinda-server')
+    $allModules  = @('ms-catalogo', 'ms-pedidos', 'ms-pagamentos', 'ms-notificacoes', 'ms-ia-suporte', 'mcp-florinda-server')
+    $aiModules   = @('ms-ia-suporte', 'mcp-florinda-server')
+    $modules     = if ($SkipAI) { $allModules | Where-Object { $_ -notin $aiModules } } else { $allModules }
 
     Write-Host "[dev-up] Log hints (.dev-logs):" -ForegroundColor DarkYellow
     foreach ($name in $modules) {
@@ -230,14 +404,16 @@ function Test-ModuleHealth {
 }
 
 function Wait-ModulesHealthy {
-    $modules = @(
-        @{ Name = 'ms-catalogo'; Port = 8082 },
-        @{ Name = 'ms-pedidos'; Port = 8080 },
-        @{ Name = 'ms-pagamentos'; Port = 8081 },
-        @{ Name = 'ms-notificacoes'; Port = 8084 },
-        @{ Name = 'ms-ia-suporte'; Port = 8083 },
-        @{ Name = 'mcp-florinda-server'; Port = 8085 }
+    $allModules = @(
+        @{ Name = 'ms-catalogo';         Port = 8082; IsAI = $false },
+        @{ Name = 'ms-pedidos';          Port = 8080; IsAI = $false },
+        @{ Name = 'ms-pagamentos';       Port = 8081; IsAI = $false },
+        @{ Name = 'ms-notificacoes';     Port = 8084; IsAI = $false },
+        @{ Name = 'ms-ia-suporte';       Port = 8083; IsAI = $true  },
+        @{ Name = 'mcp-florinda-server'; Port = 8085; IsAI = $true  }
     )
+
+    $modules = if ($SkipAI) { $allModules | Where-Object { -not $_.IsAI } } else { $allModules }
 
     Write-Step "Waiting modules health for up to ${HealthTimeoutSec}s"
     $deadline = (Get-Date).AddSeconds($HealthTimeoutSec)
@@ -287,6 +463,7 @@ if (-not $DryRun) {
     java -version
     mvn -v
     docker --version
+    Test-PageFile
 }
 
 if ($KillPorts) {
@@ -297,6 +474,7 @@ if ($KillPorts) {
 
 if (-not $SkipInfra) {
     Write-Step "Ensuring Docker infrastructure"
+    Ensure-DockerDaemon
 
     Ensure-Container -Name "florinda-postgres" -RunArgs @(
         "run", "--name", "florinda-postgres",
@@ -361,39 +539,82 @@ if (-not $SkipInfra) {
     )
 
     # ------------------------------------------------------------------
-    # Fase 3 — Ollama (LLM local)
+    # Fase 3 - Ollama (LLM local)
+    # Estrategia: se o Ollama ja estiver rodando nativamente na porta
+    # 11434 (instalacao local), usa ele diretamente - sem container.
+    # Apenas cria o container florinda-ollama se a porta estiver livre.
     # ------------------------------------------------------------------
-    Ensure-Container -Name "florinda-ollama" -RunArgs @(
-        "run", "--name", "florinda-ollama",
-        "-p", "11434:11434",
-        "-v", "florinda-ollama-data:/root/.ollama",
-        "-d", "ollama/ollama"
-    )
-
-    if ($PullModels -and -not $DryRun) {
-        Write-Step "Waiting for Ollama to initialize (~8s)..."
-        Start-Sleep -Seconds 8
-
-        $ollamaModels = docker exec florinda-ollama ollama list 2>$null
-        if ($ollamaModels -notmatch "llama3.2") {
-            Write-Step "Pulling llama3.2 (this may take several minutes the first time)..."
-            docker exec florinda-ollama ollama pull llama3.2
+    $ollamaLocal = $false
+    if (-not $DryRun) {
+        try {
+            $null = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 3
+            $ollamaLocal = $true
+            Write-Host "[dev-up] Ollama nativo detectado em localhost:11434 - container Docker nao e necessario." -ForegroundColor Green
         }
-        else {
-            Write-Host "llama3.2 already present, skipping pull."
-        }
-
-        if ($ollamaModels -notmatch "nomic-embed-text") {
-            Write-Step "Pulling nomic-embed-text..."
-            docker exec florinda-ollama ollama pull nomic-embed-text
-        }
-        else {
-            Write-Host "nomic-embed-text already present, skipping pull."
+        catch {
+            $ollamaLocal = $false
         }
     }
-    elseif ($PullModels -and $DryRun) {
-        Write-Host "[dry-run] docker exec florinda-ollama ollama pull llama3.2" -ForegroundColor Yellow
-        Write-Host "[dry-run] docker exec florinda-ollama ollama pull nomic-embed-text" -ForegroundColor Yellow
+
+    if (-not $ollamaLocal) {
+        Ensure-Container -Name "florinda-ollama" -RunArgs @(
+            "run", "--name", "florinda-ollama",
+            "-p", "11434:11434",
+            "-v", "florinda-ollama-data:/root/.ollama",
+            "-d", "ollama/ollama"
+        )
+    }
+
+    if ($PullModels) {
+        if ($DryRun) {
+            Write-Host "[dry-run] ollama pull llama3.2" -ForegroundColor Yellow
+            Write-Host "[dry-run] ollama pull nomic-embed-text" -ForegroundColor Yellow
+        }
+        elseif ($ollamaLocal) {
+            Write-Step "Checking Ollama models (native)..."
+            $ollamaCmd = Get-Command ollama -ErrorAction SilentlyContinue
+            if ($ollamaCmd) {
+                $installedModels = & ollama list 2>$null
+                if ($installedModels -notmatch "llama3.2") {
+                    Write-Step "Pulling llama3.2..."
+                    & ollama pull llama3.2
+                }
+                else {
+                    Write-Host "llama3.2 already present."
+                }
+
+                if ($installedModels -notmatch "nomic-embed-text") {
+                    Write-Step "Pulling nomic-embed-text..."
+                    & ollama pull nomic-embed-text
+                }
+                else {
+                    Write-Host "nomic-embed-text already present."
+                }
+            }
+            else {
+                Write-Warning "ollama CLI not found in PATH. Verify models manually: http://localhost:11434/api/tags"
+            }
+        }
+        else {
+            Write-Step "Waiting for Ollama container to initialize (~8s)..."
+            Start-Sleep -Seconds 8
+            $ollamaModels = docker exec florinda-ollama ollama list 2>$null
+            if ($ollamaModels -notmatch "llama3.2") {
+                Write-Step "Pulling llama3.2 (this may take several minutes)..."
+                docker exec florinda-ollama ollama pull llama3.2
+            }
+            else {
+                Write-Host "llama3.2 already present."
+            }
+
+            if ($ollamaModels -notmatch "nomic-embed-text") {
+                Write-Step "Pulling nomic-embed-text..."
+                docker exec florinda-ollama ollama pull nomic-embed-text
+            }
+            else {
+                Write-Host "nomic-embed-text already present."
+            }
+        }
     }
 
     if (-not $DryRun) {
@@ -411,8 +632,10 @@ if ($StartModules) {
 
 Write-Step "Done."
 Write-Host "Tip: run '.\dev-up.ps1 -StartModules -KillPorts' to start infra + modules."
+Write-Host "Tip: run '.\dev-up.ps1 -StartModules -KillPorts -SkipAI' to start apenas os 4 modulos core (sem Ollama/LangChain4j)."
 Write-Host "Tip: run '.\dev-up.ps1 -PullModels' to download Ollama LLM models (first run, requires ~3 GB)."
 Write-Host "Tip: combine flags: '.\dev-up.ps1 -StartModules -KillPorts -PullModels -WaitForHealth'."
+Write-Host "Tip: se der OOM/net.dll error: aumente o pagefile do Windows (Sistema -> Memoria Virtual -> Gerenciado pelo sistema -> Reiniciar)."
 Write-Host "Tip: if a container is corrupted/stuck, run '.\dev-up.ps1 -RecreateContainers'."
 Write-Host "Tip: add -WaitForHealth to fail fast when a module does not come online."
 

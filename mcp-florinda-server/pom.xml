@@ -15,16 +15,16 @@
     <artifactId>mcp-florinda-server</artifactId>
     <name>Florinda Eats — MCP Server</name>
     <description>
-        Servidor MCP via SSE expondo tools de negócio para o agente IA.
+        Servidor MCP via SSE expondo tools de negocio para o agente IA.
         Tools: getOrderStatus, cancelOrder, getRestaurantMenu.
-        groupId correto: io.quarkiverse.mcp (validado).
-        versão: 1.0.0.CR1 (validada no ambiente).
+        groupId correto: io.quarkiverse.mcp.
+        versao da extensao MCP: 1.0.0.Alpha6.
         Java 21 LTS.
     </description>
 
     <properties>
-        <!-- Versão validada — groupId io.quarkiverse.mcp (não langchain4j) -->
-        <quarkus.mcp.version>1.0.0.CR1</quarkus.mcp.version>
+        <!-- Versao compativel com Quarkus 3.17.x -->
+        <quarkus.mcp.version>1.0.0.Alpha6</quarkus.mcp.version>
     </properties>
 
     <dependencies>

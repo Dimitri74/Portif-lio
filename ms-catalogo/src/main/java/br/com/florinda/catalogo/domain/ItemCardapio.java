@@ -24,10 +24,11 @@ public class ItemCardapio extends PanacheEntityBase {
 
     @NotBlank
     @Size(max = 150)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 150)
     public String nome;
 
     @Size(max = 500)
+    @Column(length = 500)
     public String descricao;
 
     @NotNull
@@ -40,7 +41,7 @@ public class ItemCardapio extends PanacheEntityBase {
     public boolean disponivel = true;
 
     @Size(max = 500)
-    @Column(name = "foto_url")
+    @Column(name = "foto_url", length = 500)
     public String fotoUrl;
 
     public Integer calorias;

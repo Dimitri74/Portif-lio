@@ -1,0 +1,479 @@
+{
+  "info": {
+    "name": "Florinda Eats — Completo (Fases 1-3)",
+    "description": "Collection para testar todos os endpoints das Fases 1 (Catalogo), 2 (Pedidos+Pagamentos+Notificacoes) e 3 (IA+MCP)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "catalogo_base", "value": "http://localhost:8082" },
+    { "key": "pedidos_base", "value": "http://localhost:8080" },
+    { "key": "pagamentos_base", "value": "http://localhost:8081" },
+    { "key": "notificacoes_base", "value": "http://localhost:8084" },
+    { "key": "ia_base", "value": "http://localhost:8083" },
+    { "key": "mcp_base", "value": "http://localhost:8085" },
+    { "key": "restaurante_id", "value": "COLE_O_ID_AQUI" },
+    { "key": "cardapio_id", "value": "COLE_O_ID_AQUI" },
+    { "key": "pedido_id", "value": "COLE_O_ID_AQUI" },
+    { "key": "pagamento_id", "value": "COLE_O_ID_AQUI" },
+    { "key": "sessao_id", "value": "sessao-postman-01" }
+  ],
+  "item": [
+    {
+      "name": "FASE 1 - Catalogo",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/q/health", "host": ["{{catalogo_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/swagger-ui", "host": ["{{catalogo_base}}"], "path": ["swagger-ui"] }
+          }
+        },
+        {
+          "name": "Criar Restaurante",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Churrascaria Florinda\",\n  \"descricao\": \"Carnes na brasa\",\n  \"categoria\": \"Churrasco\",\n  \"telefone\": \"88999999999\",\n  \"email\": \"contato@florinda.com\",\n  \"endereco\": {\n    \"logradouro\": \"Rua das Flores\",\n    \"numero\": \"10\",\n    \"bairro\": \"Centro\",\n    \"cidade\": \"Juazeiro do Norte\",\n    \"uf\": \"CE\",\n    \"cep\": \"63000-000\"\n  },\n  \"horarioAbertura\": \"11:00:00\",\n  \"horarioFechamento\": \"23:00:00\"\n}"
+            },
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes"] }
+          }
+        },
+        {
+          "name": "Listar Restaurantes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes"] }
+          }
+        },
+        {
+          "name": "Buscar Restaurante por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes/{{restaurante_id}}", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes","{{restaurante_id}}"] }
+          }
+        },
+        {
+          "name": "Abrir Restaurante",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes/{{restaurante_id}}/abrir", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes","{{restaurante_id}}","abrir"] }
+          }
+        },
+        {
+          "name": "Fechar Restaurante",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes/{{restaurante_id}}/fechar", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes","{{restaurante_id}}","fechar"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FASE 2 - Pedidos",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pedidos_base}}/q/health", "host": ["{{pedidos_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pedidos_base}}/swagger-ui", "host": ["{{pedidos_base}}"], "path": ["swagger-ui"] }
+          }
+        },
+        {
+          "name": "Criar Pedido",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"11111111-0000-0000-0000-000000000001\",\n  \"restauranteId\": \"{{restaurante_id}}\",\n  \"itens\": [\n    {\n      \"itemId\": \"c1000000-0000-0000-0000-000000000001\",\n      \"nomeItem\": \"Picanha na brasa\",\n      \"precoUnitario\": 89.90,\n      \"quantidade\": 1\n    }\n  ],\n  \"observacao\": \"Sem cebola\",\n  \"enderecoEntrega\": \"Rua das Flores, 10\"\n}"
+            },
+            "url": { "raw": "{{pedidos_base}}/v1/pedidos", "host": ["{{pedidos_base}}"], "path": ["v1","pedidos"] }
+          }
+        },
+        {
+          "name": "Listar Pedidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pedidos_base}}/v1/pedidos", "host": ["{{pedidos_base}}"], "path": ["v1","pedidos"] }
+          }
+        },
+        {
+          "name": "Buscar Pedido por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pedidos_base}}/v1/pedidos/{{pedido_id}}", "host": ["{{pedidos_base}}"], "path": ["v1","pedidos","{{pedido_id}}"] }
+          }
+        },
+        {
+          "name": "Cancelar Pedido",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{pedidos_base}}/v1/pedidos/{{pedido_id}}", "host": ["{{pedidos_base}}"], "path": ["v1","pedidos","{{pedido_id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FASE 2 - Pagamentos",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pagamentos_base}}/q/health", "host": ["{{pagamentos_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pagamentos_base}}/swagger-ui", "host": ["{{pagamentos_base}}"], "path": ["swagger-ui"] }
+          }
+        },
+        {
+          "name": "Criar Pagamento (admin/teste)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pedidoId\": \"{{pedido_id}}\",\n  \"clienteId\": \"22222222-2222-2222-2222-222222222222\",\n  \"valor\": 89.90,\n  \"metodo\": \"PIX\"\n}"
+            },
+            "url": { "raw": "{{pagamentos_base}}/v1/pagamentos", "host": ["{{pagamentos_base}}"], "path": ["v1","pagamentos"] }
+          }
+        },
+        {
+          "name": "Buscar Pagamento por ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pagamentos_base}}/v1/pagamentos/{{pagamento_id}}", "host": ["{{pagamentos_base}}"], "path": ["v1","pagamentos","{{pagamento_id}}"] }
+          }
+        },
+        {
+          "name": "Consultar Pagamento por Pedido ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pagamentos_base}}/v1/pagamentos/pedido/{{pedido_id}}", "host": ["{{pagamentos_base}}"], "path": ["v1","pagamentos","pedido","{{pedido_id}}"] }
+          }
+        },
+        {
+          "name": "Fazer Estorno",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motivo\": \"Cancelamento solicitado pelo cliente\"\n}"
+            },
+            "url": { "raw": "{{pagamentos_base}}/v1/pagamentos/{{pagamento_id}}/estorno", "host": ["{{pagamentos_base}}"], "path": ["v1","pagamentos","{{pagamento_id}}","estorno"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FASE 2 - Notificacoes",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificacoes_base}}/q/health", "host": ["{{notificacoes_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Status de Notificacoes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificacoes_base}}/v1/notificacoes/status", "host": ["{{notificacoes_base}}"], "path": ["v1","notificacoes","status"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{notificacoes_base}}/swagger-ui", "host": ["{{notificacoes_base}}"], "path": ["swagger-ui"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FASE 3 - IA Suporte",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{ia_base}}/q/health", "host": ["{{ia_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Health Check Estendido (LLM + RAG)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{ia_base}}/v1/ia/health", "host": ["{{ia_base}}"], "path": ["v1","ia","health"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{ia_base}}/swagger-ui", "host": ["{{ia_base}}"], "path": ["swagger-ui"] }
+          }
+        },
+        {
+          "name": "Chat — Pergunta Simples",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"Qual o prazo de entrega?\",\n  \"sessaoId\": \"{{sessao_id}}\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Chat — Consultar Status Pedido (MCP Tool)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"Qual o status do pedido {{pedido_id}}?\",\n  \"sessaoId\": \"{{sessao_id}}\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Chat — Cancelar Pedido (MCP Tool)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"Quero cancelar meu pedido {{pedido_id}} porque mudei de ideia.\",\n  \"sessaoId\": \"{{sessao_id}}\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Chat — Consultar Cardapio (MCP Tool)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"O que tem no cardapio do restaurante {{restaurante_id}}?\",\n  \"sessaoId\": \"{{sessao_id}}\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Chat — Multi-turno (Turno 1)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"Ola, fiz um pedido e quero saber o status.\",\n  \"sessaoId\": \"sessao-multi-01\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Chat — Multi-turno (Turno 2, mesmo sessaoId)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"O ID e {{pedido_id}}\",\n  \"sessaoId\": \"sessao-multi-01\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        },
+        {
+          "name": "Ingerir Documento Único (Admin RAG)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"conteudo\": \"Qual o prazo de entrega? O prazo medio e de 30 a 60 minutos dependendo da distancia e do restaurante.\",\n  \"fonte\": \"faq\",\n  \"fonteId\": \"faq-prazo-01\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/admin/ingerir", "host": ["{{ia_base}}"], "path": ["v1","ia","admin","ingerir"] }
+          }
+        },
+        {
+          "name": "Ingerir Lote de Documentos (Admin RAG)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"conteudo\": \"Como rastrear meu pedido? Acompanhe em tempo real pelo app na secao Meus Pedidos.\",\n    \"fonte\": \"faq\",\n    \"fonteId\": \"faq-rastreio-01\"\n  },\n  {\n    \"conteudo\": \"Quais formas de pagamento sao aceitas? PIX, cartao de credito e debito.\",\n    \"fonte\": \"faq\",\n    \"fonteId\": \"faq-pagamento-01\"\n  },\n  {\n    \"conteudo\": \"Como entro em contato com o restaurante? Via chat no app ou pelo telefone cadastrado no perfil do restaurante.\",\n    \"fonte\": \"faq\",\n    \"fonteId\": \"faq-contato-01\"\n  }\n]"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/admin/ingerir/lote", "host": ["{{ia_base}}"], "path": ["v1","ia","admin","ingerir","lote"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "FASE 3 - MCP Server",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{mcp_base}}/q/health", "host": ["{{mcp_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "Swagger UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{mcp_base}}/swagger-ui", "host": ["{{mcp_base}}"], "path": ["swagger-ui"] }
+          }
+        },
+        {
+          "name": "SSE Stream MCP (abrir no browser)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": { "raw": "{{mcp_base}}/mcp/sse", "host": ["{{mcp_base}}"], "path": ["mcp","sse"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ollama (Local)",
+      "item": [
+        {
+          "name": "Listar Modelos Instalados",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "http://localhost:11434/api/tags", "host": ["localhost:11434"], "path": ["api","tags"] }
+          }
+        },
+        {
+          "name": "Teste LLM Direto (Ollama)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"llama3.2\",\n  \"prompt\": \"Responda em uma linha: o que e comida delivery?\",\n  \"stream\": false\n}"
+            },
+            "url": { "raw": "http://localhost:11434/api/generate", "host": ["localhost:11434"], "path": ["api","generate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roteiros de Teste Integrados",
+      "item": [
+        {
+          "name": "[ROTEIRO 1] Health Check - Todos os Modulos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/q/health", "host": ["{{catalogo_base}}"], "path": ["q","health"] }
+          }
+        },
+        {
+          "name": "[ROTEIRO 2] Criar Restaurante e copie o ID",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Pizza Florinda\",\n  \"descricao\": \"Pizzas artesanais\",\n  \"categoria\": \"Pizzaria\",\n  \"telefone\": \"88988888888\",\n  \"email\": \"pizza@florinda.com\",\n  \"endereco\": {\n    \"logradouro\": \"Av. Central\",\n    \"numero\": \"100\",\n    \"bairro\": \"Vila\",\n    \"cidade\": \"Fortaleza\",\n    \"uf\": \"CE\",\n    \"cep\": \"60000-000\"\n  },\n  \"horarioAbertura\": \"12:00:00\",\n  \"horarioFechamento\": \"22:00:00\"\n}"
+            },
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes"] }
+          }
+        },
+        {
+          "name": "[ROTEIRO 3] Abrir Restaurante (use o ID copiado)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": { "raw": "{{catalogo_base}}/v1/restaurantes/{{restaurante_id}}/abrir", "host": ["{{catalogo_base}}"], "path": ["v1","restaurantes","{{restaurante_id}}","abrir"] }
+          }
+        },
+        {
+          "name": "[ROTEIRO 4] Criar Pedido (use restaurante_id)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clienteId\": \"11111111-0000-0000-0000-000000000001\",\n  \"restauranteId\": \"{{restaurante_id}}\",\n  \"itens\": [\n    {\n      \"itemId\": \"item-pizza-001\",\n      \"nomeItem\": \"Pizza Margherita\",\n      \"precoUnitario\": 45.00,\n      \"quantidade\": 2\n    }\n  ],\n  \"observacao\": \"Sem cebola\",\n  \"enderecoEntrega\": \"Av. Central, 100\"\n}"
+            },
+            "url": { "raw": "{{pedidos_base}}/v1/pedidos", "host": ["{{pedidos_base}}"], "path": ["v1","pedidos"] }
+          }
+        },
+        {
+          "name": "[ROTEIRO 5] Consultar Pagamento por Pedido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{pagamentos_base}}/v1/pagamentos/pedido/{{pedido_id}}", "host": ["{{pagamentos_base}}"], "path": ["v1","pagamentos","pedido","{{pedido_id}}"] }
+          }
+        },
+        {
+          "name": "[ROTEIRO 6] Chat IA - Consultar Status Pedido",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pergunta\": \"Qual o status do pedido {{pedido_id}}?\",\n  \"sessaoId\": \"roteiro-completo-01\"\n}"
+            },
+            "url": { "raw": "{{ia_base}}/v1/ia/chat", "host": ["{{ia_base}}"], "path": ["v1","ia","chat"] }
+          }
+        }
+      ]
+    }
+  ]
+}
+

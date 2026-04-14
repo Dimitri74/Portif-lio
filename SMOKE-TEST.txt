@@ -1,0 +1,407 @@
+================================================================================
+ROTEIRO SMOKE TEST - FLORINDA EATS
+Versão: 1.0 | Data: 2026-04-14
+================================================================================
+
+Objetivo: Validar startup, health-check e fluxo funcional end-to-end entre
+os 6 módulos da aplicação (ms-pedidos, ms-pagamentos, ms-catalogo,
+ms-notificacoes, ms-ia-suporte, mcp-florinda-server).
+
+Pré-requisito: Todos os 6 módulos devem estar em execução (quarkus:dev).
+Use: .\dev-up.ps1 -StartModules -KillPorts -WaitForHealth
+
+================================================================================
+SEÇÃO 1: PRÉ-CHECK — INFRA E HEALTH
+================================================================================
+
+1.1) Validar containers Docker ativos:
+
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+    Esperado: 5 containers UP:
+      - florinda-postgres (5433:5432)
+      - florinda-redis (6379:6379)
+      - florinda-mysql-pedidos (3307:3306)
+      - florinda-mysql-pagamentos (3308:3306)
+      - florinda-kafka (9092:9092)
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.2) Health check — ms-pedidos (8080):
+
+    curl.exe -s http://localhost:8080/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.3) Health check — ms-pagamentos (8081):
+
+    curl.exe -s http://localhost:8081/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.4) Health check — ms-catalogo (8082):
+
+    curl.exe -s http://localhost:8082/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.5) Health check — ms-notificacoes (8084):
+
+    curl.exe -s http://localhost:8084/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.6) Health check — ms-ia-suporte (8083):
+
+    curl.exe -s http://localhost:8083/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+1.7) Health check — mcp-florinda-server (8085):
+
+    curl.exe -s http://localhost:8085/q/health
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+================================================================================
+SEÇÃO 2: CATÁLOGO (ms-catalogo, porta 8082)
+================================================================================
+
+2.1) Listar restaurantes abertos (seed data):
+
+    curl.exe -s "http://localhost:8082/v1/restaurantes?abertos=true"
+
+    Esperado: Array JSON com pelo menos 2 restaurantes (Churrascaria do Zé e
+              Pizzaria Bella Napoli em status ABERTO)
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+2.2) Consultar restaurante seed específico (Churrascaria):
+
+    curl.exe -s "http://localhost:8082/v1/restaurantes/a1b2c3d4-0000-0000-0000-000000000001"
+
+    Esperado: HTTP 200, JSON com nome "Churrascaria do Zé", status "ABERTO"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+2.3) Listar itens do cardápio:
+
+    curl.exe -s "http://localhost:8082/v1/cardapios/b1b2c3d4-0000-0000-0000-000000000001/itens"
+
+    Esperado: Array JSON com itens (Picanha na brasa, Costela assada, etc.)
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+================================================================================
+SEÇÃO 3: PEDIDOS (ms-pedidos, porta 8080) + PAGAMENTOS (ms-pagamentos, 8081)
+================================================================================
+
+3.1) Criar um pedido (end-to-end com pagamento):
+
+    Execute em PowerShell:
+
+    $clienteId = [guid]::NewGuid().ToString()
+    Write-Host "Cliente ID para este teste: $clienteId"
+
+    $pedidoBody = @{
+      clienteId = $clienteId
+      restauranteId = "a1b2c3d4-0000-0000-0000-000000000001"
+      itens = @(
+        @{
+          itemId = "c1000000-0000-0000-0000-000000000001"
+          nomeItem = "Picanha na brasa"
+          precoUnitario = 89.90
+          quantidade = 1
+        }
+      )
+      observacao = "Sem cebola, por favor"
+      enderecoEntrega = "Rua Teste, 100, Centro"
+    } | ConvertTo-Json -Depth 6
+
+    $pedidoResp = Invoke-RestMethod -Method Post -Uri "http://localhost:8080/v1/pedidos" `
+      -ContentType "application/json" -Body $pedidoBody
+
+    $pedidoId = $pedidoResp.id
+    Write-Host "Pedido criado: $pedidoId"
+    $pedidoResp | ConvertTo-Json -Depth 6
+
+    Esperado: HTTP 201 (Created) com JSON contendo:
+      - id (UUID válido)
+      - clienteId (igual ao enviado)
+      - restauranteId = "a1b2c3d4-0000-0000-0000-000000000001"
+      - status = "PENDENTE"
+      - valorTotal = 89.90
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+3.2) Consultar pedido criado:
+
+    Invoke-RestMethod -Method Get -Uri "http://localhost:8080/v1/pedidos/$pedidoId" | ConvertTo-Json -Depth 6
+
+    Esperado: HTTP 200 com JSON retornando o pedido com id=$pedidoId
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+3.3) Processar pagamento para o pedido:
+
+    Execute em PowerShell (usando $pedidoId e $clienteId do passo anterior):
+
+    $pagBody = @{
+      pedidoId = $pedidoId
+      clienteId = $clienteId
+      valor = 89.90
+      metodo = "PIX"
+    } | ConvertTo-Json -Depth 4
+
+    $pagResp = Invoke-RestMethod -Method Post -Uri "http://localhost:8081/v1/pagamentos" `
+      -ContentType "application/json" -Body $pagBody
+
+    $pagId = $pagResp.id
+    Write-Host "Pagamento criado: $pagId"
+    $pagResp | ConvertTo-Json -Depth 6
+
+    Esperado: HTTP 201 (Created) com JSON contendo:
+      - id (UUID válido)
+      - pedidoId (igual ao do passo anterior)
+      - clienteId (igual ao enviado)
+      - valor = 89.90
+      - metodo = "PIX"
+      - status = "PROCESSADO"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+3.4) Consultar pagamento por pedidoId:
+
+    Invoke-RestMethod -Method Get -Uri "http://localhost:8081/v1/pagamentos/pedido/$pedidoId" | ConvertTo-Json -Depth 6
+
+    Esperado: HTTP 200 retornando pagamento com pedidoId=$pedidoId, status="PROCESSADO"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+================================================================================
+SEÇÃO 4: NOTIFICAÇÕES (ms-notificacoes, porta 8084)
+================================================================================
+
+4.1) Status do serviço de notificações (verifica tópicos Kafka monitorados):
+
+    curl.exe -s "http://localhost:8084/v1/notificacoes/status"
+
+    Esperado: HTTP 200 com JSON contendo:
+      - "servico": "ms-notificacoes"
+      - "status": "UP"
+      - "topicos": array com tópicos (order.created, payment.approved, etc.)
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+4.2) Validação de fluxo (opcional — após pedido + pagamento):
+
+    Nota: ms-notificacoes consome eventos Kafka (não expõe GET de notificações).
+          Validar apenas que /status retorna UP. Logs confirmam consumo em:
+          .\.dev-logs\ms-notificacoes.log
+
+    Exemplo de validação manual:
+
+    Get-Content ".\.dev-logs\ms-notificacoes.log" -Tail 50 | Select-String -Pattern "order.created|payment.approved"
+
+    Status: [ ] PASS  [ ] FAIL (qualquer uma é OK para smoke test)
+
+
+================================================================================
+SEÇÃO 5: AGENTE IA (ms-ia-suporte, porta 8083)
+================================================================================
+
+5.1) Health check estendido (verifica Ollama, PgVector, Redis):
+
+    curl.exe -s "http://localhost:8083/v1/ia/health"
+
+    Esperado: HTTP 200 com JSON contendo:
+      - "servico": "ms-ia-suporte"
+      - "llm": "ollama/llama3.2"
+      - "embeddings": "ollama/nomic-embed-text"
+      - "vectorStore": "pgvector"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+5.2) Chat com agente IA (teste mínimo):
+
+    Execute em PowerShell (reutilizando $clienteId):
+
+    $chatBody = @{
+      pergunta = "Quais restaurantes abertos voce recomenda?"
+      sessaoId = "smoke-session-$(Get-Random -Minimum 1000 -Maximum 9999)"
+      clienteId = $clienteId
+    } | ConvertTo-Json -Depth 4
+
+    $iaResp = Invoke-RestMethod -Method Post -Uri "http://localhost:8083/v1/ia/chat" `
+      -ContentType "application/json" -Body $chatBody
+
+    $iaResp | ConvertTo-Json -Depth 6
+
+    Esperado: HTTP 200 com JSON contendo:
+      - "resposta": string não vazia (resposta do LLM)
+      - "sessaoId": ID da sessão
+      - "timestamp": timestamp ISO
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+================================================================================
+SEÇÃO 6: MCP SERVER (mcp-florinda-server, porta 8085)
+================================================================================
+
+6.1) Health check MCP:
+
+    curl.exe -s "http://localhost:8085/q/health"
+
+    Esperado: HTTP 200 com JSON contendo "UP"
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+6.2) Teste de conexão SSE (Model Context Protocol via Server-Sent Events):
+
+    curl.exe -i -N --max-time 8 "http://localhost:8085/mcp/sse"
+
+    Esperado: HTTP 200 com headers:
+      - Transfer-Encoding: chunked
+      - Content-Type: text/event-stream
+
+    Conexão fica aberta (normal SSE). Ctrl+C para encerrar.
+
+    Status: [ ] PASS  [ ] FAIL
+
+
+================================================================================
+SEÇÃO 7: DIAGNÓSTICO (em caso de falha)
+================================================================================
+
+7.1) Verificar processos em cada porta:
+
+    Get-NetTCPConnection -LocalPort 8080,8081,8082,8083,8084,8085 -State Listen | `
+      Select-Object LocalPort,OwningProcess
+
+
+7.2) Verificar status dos containers:
+
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+
+
+7.3) Coletar logs dos módulos (últimas 80 linhas):
+
+    Get-Content ".\.dev-logs\ms-pedidos.log" -Tail 80
+    Get-Content ".\.dev-logs\ms-pagamentos.log" -Tail 80
+    Get-Content ".\.dev-logs\ms-catalogo.log" -Tail 80
+    Get-Content ".\.dev-logs\ms-notificacoes.log" -Tail 80
+    Get-Content ".\.dev-logs\ms-ia-suporte.log" -Tail 80
+    Get-Content ".\.dev-logs\mcp-florinda-server.log" -Tail 120
+
+
+7.4) Kill rápido de uma porta específica (se travar):
+
+    # Exemplo: matar processo na porta 8083
+    $proc = Get-NetTCPConnection -LocalPort 8083 -State Listen | Select-Object -First 1
+    Stop-Process -Id $proc.OwningProcess -Force
+
+
+7.5) Restart completo da infraestrutura:
+
+    .\dev-up.ps1 -KillPorts -SkipInfra
+    .\dev-up.ps1 -SkipAI
+    # (Depois subir módulos manualmente ou com -StartModules -WaitForHealth)
+
+
+================================================================================
+SEÇÃO 8: CHECKLIST FINAL
+================================================================================
+
+Marque cada seção conforme completa:
+
+  [ ] 1 — Infra + Health (7/7 módulos respondendo)
+  [ ] 2 — Catálogo (3/3 testes)
+  [ ] 3 — Pedidos + Pagamentos (4/4 testes)
+  [ ] 4 — Notificações (1/2 testes — status obrigatório)
+  [ ] 5 — IA (2/2 testes)
+  [ ] 6 — MCP (2/2 testes)
+
+Status geral: [ ] PASSED  [ ] FAILED (se algum item falhar)
+
+Data/Hora do teste: _____________________________
+Testador: _____________________________
+Notas/Issues encontradas:
+
+    ________________________________________________________________________
+
+    ________________________________________________________________________
+
+    ________________________________________________________________________
+
+
+================================================================================
+REFERÊNCIAS RÁPIDAS
+================================================================================
+
+Portas:
+  - ms-pedidos: 8080
+  - ms-pagamentos: 8081
+  - ms-catalogo: 8082
+  - ms-ia-suporte: 8083
+  - ms-notificacoes: 8084
+  - mcp-florinda-server: 8085
+
+IDs de teste (seed data):
+  - Restaurante (Churrascaria): a1b2c3d4-0000-0000-0000-000000000001
+  - Restaurante (Pizzaria): a1b2c3d4-0000-0000-0000-000000000002
+  - Cardápio (Churrascaria): b1b2c3d4-0000-0000-0000-000000000001
+  - Item (Picanha): c1000000-0000-0000-0000-000000000001
+
+Métodos de pagamento aceitos: CARTAO_CREDITO, CARTAO_DEBITO, PIX, VALE_REFEICAO
+
+Endpoints Swagger (UI):
+  - http://localhost:8080/swagger-ui/
+  - http://localhost:8081/swagger-ui/
+  - http://localhost:8082/swagger-ui/
+  - http://localhost:8083/swagger-ui/
+  - http://localhost:8084/ (sem Swagger)
+  - http://localhost:8085/swagger-ui/
+
+Postman Collection:
+  - Florinda-Eats-Complete.postman_collection.json
+
+Docs:
+  - README.md (visão geral)
+  - QUICKSTART.md (setup rápido)
+  - AgenteFlorindaIA.md (fluxo IA)
+  - SAGA-KAFKA.md (padrão SAGA com Kafka)
+
+================================================================================
+FIM DO ROTEIRO
+================================================================================
+

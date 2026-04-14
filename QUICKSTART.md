@@ -88,23 +88,37 @@ docker start florinda-kafka
 
 ### 4.6 Ollama (LLM local — Fase 3) - porta 11434
 
-```powershell
-# Primeira vez: cria container com volume persistente
-docker run --name florinda-ollama -p 11434:11434 -v florinda-ollama-data:/root/.ollama -d ollama/ollama
+**Opção A — Ollama instalado nativamente (recomendado)**
 
-# Proximas vezes
+Se o Ollama já esta instalado na maquina (https://ollama.com/download), o servico sobe automaticamente no Windows e responde em `http://localhost:11434`. Nenhum container Docker e necessario.
+
+Verificar:
+```powershell
+Invoke-RestMethod http://localhost:11434/api/tags
+```
+
+**Opção B — Ollama via Docker** (somente sem instalacao nativa)
+
+```powershell
+docker run --name florinda-ollama -p 11434:11434 -v florinda-ollama-data:/root/.ollama -d ollama/ollama
 docker start florinda-ollama
 ```
 
-### 4.7 Baixar modelos LLM (apenas uma vez — ~3 GB)
+> O `dev-up.ps1` detecta automaticamente o Ollama nativo e pula o container Docker.
+
+### 4.7 Baixar modelos LLM (apenas uma vez — ~2.2 GB no total)
 
 ```powershell
-Start-Sleep -Seconds 8
+# Com Ollama nativo:
+ollama pull llama3.2
+ollama pull nomic-embed-text
+
+# Com Ollama via Docker:
 docker exec florinda-ollama ollama pull llama3.2
 docker exec florinda-ollama ollama pull nomic-embed-text
 ```
 
-Ou use o script:
+Ou use o script (detecta automaticamente qual modo esta ativo):
 
 ```powershell
 .\dev-up.ps1 -PullModels
@@ -339,7 +353,9 @@ Para ingerir manualmente via Swagger (`POST /v1/ia/admin/ingerir`):
 
 **Passo 4 — Usar Postman**
 
-Importe o arquivo `florinda-ia-postman.json` da raiz do projeto no Postman.
+Importe o arquivo `Florinda-Eats-Complete.postman_collection.json` da raiz do projeto no Postman.
+
+Essa collection tem TUDO das Fases 1, 2 e 3.
 
 **Passo 5 — Health check de todos os modulos**
 

@@ -57,9 +57,36 @@ ms-pedidos  ──► order.status.updated ──► consumer (ms-ia-suporte)
 
 Além dos pré-requisitos da Fase 2 (Docker, JDK 21, Maven 3.9+):
 
-- Docker com **>= 4 GB de RAM** disponível para o container Ollama
-- ~5 GB de espaço livre no disco para os modelos (`llama3.2` + `nomic-embed-text`)
+- **Ollama instalado localmente** (recomendado) **ou** via Docker
+  - Download: https://ollama.com/download
+  - Após instalar, o serviço sobe automaticamente em `http://localhost:11434`
+- Modelos necessários (baixe uma vez): `llama3.2` (~2 GB) e `nomic-embed-text` (~300 MB)
 - Fase 2 funcional: containers `florinda-postgres`, `florinda-redis`, `florinda-kafka` ativos
+
+> **Ollama nativo x Docker:** se o Ollama estiver instalado na máquina, o `dev-up.ps1` detecta automaticamente na porta 11434 e **não cria nenhum container Docker** para ele. Os modelos ficam no diretório local do Ollama (`~/.ollama/models`).
+
+### Verificar Ollama e modelos instalados
+
+```powershell
+# Confirmar que o Ollama está respondendo
+Invoke-RestMethod http://localhost:11434/api/tags
+
+# Listar modelos disponíveis
+ollama list
+```
+
+Resultado esperado:
+```
+NAME                       SIZE
+llama3.2:latest            1.9 GB
+nomic-embed-text:latest    0.3 GB
+```
+
+Se algum modelo estiver faltando:
+```powershell
+ollama pull llama3.2
+ollama pull nomic-embed-text
+```
 
 ---
 
@@ -115,44 +142,57 @@ docker start florinda-mysql-pagamentos
 docker start florinda-kafka
 ```
 
-#### Passo 3 — Subir o Ollama
+#### Passo 3 — Ollama (nativo ou Docker)
+
+**Opção A — Ollama instalado nativamente (recomendado)**
+
+Se o Ollama já está instalado (https://ollama.com/download), ele sobe automaticamente como serviço do Windows. Verifique:
 
 ```powershell
-# Primeira vez — cria o container com volume persistente
-docker run --name florinda-ollama -p 11434:11434 -v florinda-ollama-data:/root/.ollama -d ollama/ollama
+Invoke-RestMethod http://localhost:11434/api/tags
+# deve listar os modelos instalados
 
-# Próximas vezes
-docker start florinda-ollama
+ollama list
+# llama3.2:latest e nomic-embed-text:latest devem aparecer
 ```
 
-#### Passo 4 — Baixar modelos LLM (apenas uma vez, ~3 GB)
+Se precisar baixar os modelos:
+```powershell
+ollama pull llama3.2
+ollama pull nomic-embed-text
+```
+
+**Opção B — Ollama via Docker** (somente se não tiver instalação nativa)
 
 ```powershell
-# Aguarda o Ollama inicializar (~5s) e baixa os modelos
+docker run --name florinda-ollama -p 11434:11434 -v florinda-ollama-data:/root/.ollama -d ollama/ollama
+
+# Aguardar e baixar modelos (apenas uma vez)
 Start-Sleep -Seconds 8
 docker exec florinda-ollama ollama pull llama3.2
 docker exec florinda-ollama ollama pull nomic-embed-text
 ```
 
-> ⚠️ Este passo pode levar vários minutos dependendo da conexão.
+> O `dev-up.ps1` detecta automaticamente qual cenário se aplica — não é necessário configurar nada manualmente.
 
-#### Passo 5 — Verificar containers ativos
+#### Passo 4 — Verificar containers ativos
 
 ```powershell
 docker ps --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
 ```
 
-Resultado esperado:
+Resultado esperado (sem Ollama nativo já rodando):
 
 ```
 NAMES                       STATUS          PORTS
-florinda-ollama             Up              0.0.0.0:11434->11434/tcp
 florinda-kafka              Up              0.0.0.0:9092->9092/tcp
 florinda-mysql-pagamentos   Up              0.0.0.0:3308->3306/tcp
 florinda-mysql-pedidos      Up              0.0.0.0:3307->3306/tcp
 florinda-redis              Up              0.0.0.0:6379->6379/tcp
 florinda-postgres           Up              0.0.0.0:5433->5432/tcp
 ```
+
+> Se estiver usando Ollama nativo (recomendado), `florinda-ollama` **não aparece** no `docker ps` — e está correto.
 
 #### Passo 6 — Subir os módulos (terminais separados)
 
@@ -295,7 +335,9 @@ Acesse: **http://localhost:8083/swagger-ui**
 
 ### Collection Postman
 
-Importe o arquivo **`florinda-ia-postman.json`** (na raiz do projeto) diretamente no Postman.
+Importe o arquivo **`Florinda-Eats-Complete.postman_collection.json`** (na raiz do projeto) diretamente no Postman.
+
+Essa collection contém **TODOS** os endpoints das Fases 1 (Catalogo), 2 (Pedidos, Pagamentos, Notificacoes) e 3 (IA + MCP).
 
 ### Requests curl
 
@@ -366,20 +408,20 @@ ms-catalogo  ──publish──►  catalog.item.updated (Kafka)
 
 ## Topologia de portas — Fase 3
 
-| Container / Módulo | Porta host | Protocolo |
-|---|---|---|
-| florinda-postgres (pgvector) | 5433 | PostgreSQL (catalogo_db + ia_suporte_db) |
-| florinda-redis | 6379 | Redis |
-| florinda-mysql-pedidos | 3307 | MySQL |
-| florinda-mysql-pagamentos | 3308 | MySQL |
-| florinda-kafka | 9092 | Kafka |
-| florinda-ollama | 11434 | HTTP REST (Ollama API) |
-| ms-pedidos | 8080 | HTTP |
-| ms-pagamentos | 8081 | HTTP |
-| ms-catalogo | 8082 | HTTP |
-| ms-ia-suporte | 8083 | HTTP |
-| ms-notificacoes | 8084 | HTTP |
-| mcp-florinda-server | 8085 | HTTP + SSE |
+| Container / Serviço | Porta host | Tipo | Observação |
+|---|---|---|---|
+| florinda-postgres (pgvector) | 5433 | Docker | catalogo_db + ia_suporte_db |
+| florinda-redis | 6379 | Docker | memória de sessão |
+| florinda-mysql-pedidos | 3307 | Docker | |
+| florinda-mysql-pagamentos | 3308 | Docker | |
+| florinda-kafka | 9092 | Docker | |
+| Ollama | 11434 | **Nativo** (preferido) ou Docker | llama3.2 + nomic-embed-text |
+| ms-pedidos | 8080 | Quarkus | |
+| ms-pagamentos | 8081 | Quarkus | |
+| ms-catalogo | 8082 | Quarkus | |
+| ms-ia-suporte | 8083 | Quarkus | |
+| ms-notificacoes | 8084 | Quarkus | |
+| mcp-florinda-server | 8085 | Quarkus | SSE em `/mcp/sse` |
 
 ---
 

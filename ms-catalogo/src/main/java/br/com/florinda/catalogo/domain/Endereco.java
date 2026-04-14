@@ -11,32 +11,32 @@ public class Endereco {
 
     @NotBlank
     @Size(max = 200)
-    @Column(name = "endereco_logradouro")
+    @Column(name = "endereco_logradouro", length = 200)
     private String logradouro;
 
     @NotBlank
     @Size(max = 10)
-    @Column(name = "endereco_numero")
+    @Column(name = "endereco_numero", length = 10)
     private String numero;
 
     @NotBlank
     @Size(max = 100)
-    @Column(name = "endereco_bairro")
+    @Column(name = "endereco_bairro", length = 100)
     private String bairro;
 
     @NotBlank
     @Size(max = 100)
-    @Column(name = "endereco_cidade")
+    @Column(name = "endereco_cidade", length = 100)
     private String cidade;
 
     @NotBlank
     @Size(min = 2, max = 2)
-    @Column(name = "endereco_uf")
+    @Column(name = "endereco_uf", columnDefinition = "char(2)")
     private String uf;
 
     @NotBlank
     @Pattern(regexp = "\\d{5}-\\d{3}", message = "CEP deve ter o formato 00000-000")
-    @Column(name = "endereco_cep")
+    @Column(name = "endereco_cep", length = 9)
     private String cep;
 
     public Endereco() {}

@@ -25,10 +25,11 @@ public class Cardapio extends PanacheEntityBase {
 
     @NotBlank
     @Size(max = 100)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     public String nome;
 
     @Size(max = 300)
+    @Column(length = 300)
     public String descricao;
 
     @Column(nullable = false)
