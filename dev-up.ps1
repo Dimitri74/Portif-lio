@@ -5,6 +5,7 @@ param(
     [switch]$DryRun,
     [switch]$RecreateContainers,
     [switch]$WaitForHealth,
+    [switch]$PullModels,
     [int]$HealthTimeoutSec = 180
 )
 
@@ -115,7 +116,7 @@ function Ensure-Container {
 }
 
 function Clear-ModulePorts {
-    $ports = @(8080, 8081, 8082, 8084)
+    $ports = @(8080, 8081, 8082, 8083, 8084, 8085)
     Write-Step "Checking module ports: $($ports -join ', ')"
 
     foreach ($port in $ports) {
@@ -145,7 +146,7 @@ function Clear-ModulePorts {
 function Stop-OldQuarkusShells {
     Write-Step "Stopping old quarkus:dev shells"
 
-    $modulePattern = 'mvn\s+-pl\s+(ms-catalogo|ms-pedidos|ms-pagamentos|ms-notificacoes)\s+quarkus:dev'
+    $modulePattern = 'mvn\s+-pl\s+(ms-catalogo|ms-pedidos|ms-pagamentos|ms-notificacoes|ms-ia-suporte|mcp-florinda-server)\s+quarkus:dev'
     $currentPid = $PID
 
     $procs = Get-CimInstance Win32_Process -Filter "name = 'powershell.exe'"
@@ -176,7 +177,9 @@ function Start-Modules {
         @{ Name = 'ms-catalogo'; Port = 8082 },
         @{ Name = 'ms-pedidos'; Port = 8080 },
         @{ Name = 'ms-pagamentos'; Port = 8081 },
-        @{ Name = 'ms-notificacoes'; Port = 8084 }
+        @{ Name = 'ms-notificacoes'; Port = 8084 },
+        @{ Name = 'ms-ia-suporte'; Port = 8083 },
+        @{ Name = 'mcp-florinda-server'; Port = 8085 }
     )
 
     Write-Step "Opening PowerShell windows for Quarkus modules"
@@ -199,7 +202,7 @@ function Start-Modules {
 }
 
 function Show-ModuleLogHints {
-    $modules = @('ms-catalogo', 'ms-pedidos', 'ms-pagamentos', 'ms-notificacoes')
+    $modules = @('ms-catalogo', 'ms-pedidos', 'ms-pagamentos', 'ms-notificacoes', 'ms-ia-suporte', 'mcp-florinda-server')
 
     Write-Host "[dev-up] Log hints (.dev-logs):" -ForegroundColor DarkYellow
     foreach ($name in $modules) {
@@ -231,7 +234,9 @@ function Wait-ModulesHealthy {
         @{ Name = 'ms-catalogo'; Port = 8082 },
         @{ Name = 'ms-pedidos'; Port = 8080 },
         @{ Name = 'ms-pagamentos'; Port = 8081 },
-        @{ Name = 'ms-notificacoes'; Port = 8084 }
+        @{ Name = 'ms-notificacoes'; Port = 8084 },
+        @{ Name = 'ms-ia-suporte'; Port = 8083 },
+        @{ Name = 'mcp-florinda-server'; Port = 8085 }
     )
 
     Write-Step "Waiting modules health for up to ${HealthTimeoutSec}s"
@@ -299,8 +304,18 @@ if (-not $SkipInfra) {
         "-e", "POSTGRES_USER=florinda",
         "-e", "POSTGRES_PASSWORD=florinda123",
         "-p", "5433:5432",
-        "-d", "postgres:16"
+        "-d", "pgvector/pgvector:pg16"
     )
+
+    if (-not $DryRun) {
+        # Aguarda postgres inicializar para criar o segundo banco
+        Start-Sleep -Seconds 5
+        $dbCheck = docker exec florinda-postgres psql -U florinda -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'ia_suporte_db'" 2>$null
+        if ($dbCheck -ne "1") {
+            Write-Step "Creating database 'ia_suporte_db' for RAG..."
+            docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"
+        }
+    }
 
     Ensure-Container -Name "florinda-redis" -RunArgs @(
         "run", "--name", "florinda-redis",
@@ -345,6 +360,42 @@ if (-not $SkipInfra) {
         "-d", "apache/kafka:3.9.0"
     )
 
+    # ------------------------------------------------------------------
+    # Fase 3 — Ollama (LLM local)
+    # ------------------------------------------------------------------
+    Ensure-Container -Name "florinda-ollama" -RunArgs @(
+        "run", "--name", "florinda-ollama",
+        "-p", "11434:11434",
+        "-v", "florinda-ollama-data:/root/.ollama",
+        "-d", "ollama/ollama"
+    )
+
+    if ($PullModels -and -not $DryRun) {
+        Write-Step "Waiting for Ollama to initialize (~8s)..."
+        Start-Sleep -Seconds 8
+
+        $ollamaModels = docker exec florinda-ollama ollama list 2>$null
+        if ($ollamaModels -notmatch "llama3.2") {
+            Write-Step "Pulling llama3.2 (this may take several minutes the first time)..."
+            docker exec florinda-ollama ollama pull llama3.2
+        }
+        else {
+            Write-Host "llama3.2 already present, skipping pull."
+        }
+
+        if ($ollamaModels -notmatch "nomic-embed-text") {
+            Write-Step "Pulling nomic-embed-text..."
+            docker exec florinda-ollama ollama pull nomic-embed-text
+        }
+        else {
+            Write-Host "nomic-embed-text already present, skipping pull."
+        }
+    }
+    elseif ($PullModels -and $DryRun) {
+        Write-Host "[dry-run] docker exec florinda-ollama ollama pull llama3.2" -ForegroundColor Yellow
+        Write-Host "[dry-run] docker exec florinda-ollama ollama pull nomic-embed-text" -ForegroundColor Yellow
+    }
+
     if (-not $DryRun) {
         docker ps --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
     }
@@ -359,7 +410,9 @@ if ($StartModules) {
 }
 
 Write-Step "Done."
-Write-Host "Tip: run '.\\dev-up.ps1 -StartModules -KillPorts' to start infra + modules."
-Write-Host "Tip: if a container is corrupted/stuck, run '.\\dev-up.ps1 -RecreateContainers'."
+Write-Host "Tip: run '.\dev-up.ps1 -StartModules -KillPorts' to start infra + modules."
+Write-Host "Tip: run '.\dev-up.ps1 -PullModels' to download Ollama LLM models (first run, requires ~3 GB)."
+Write-Host "Tip: combine flags: '.\dev-up.ps1 -StartModules -KillPorts -PullModels -WaitForHealth'."
+Write-Host "Tip: if a container is corrupted/stuck, run '.\dev-up.ps1 -RecreateContainers'."
 Write-Host "Tip: add -WaitForHealth to fail fast when a module does not come online."
 

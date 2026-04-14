@@ -15,15 +15,19 @@
     <artifactId>ms-ia-suporte</artifactId>
     <name>Florinda Eats — Agente IA de Suporte</name>
     <description>
-        Agente conversacional com RAG (PgVector + LangChain4j) e MCP.
-        Implementado na Fase 3.
+        Agente conversacional com RAG (PgVector + LangChain4j 0.26.1).
+        LLM: Ollama llama3.2. Embeddings: nomic-embed-text (dim 768).
+        Memória de sessão: Redis. Reindexação automática via Kafka.
+        Java 21 LTS.
     </description>
 
     <properties>
+        <!-- Versão validada no ambiente — não alterar sem testar -->
         <langchain4j.version>0.26.1</langchain4j.version>
     </properties>
 
     <dependencies>
+        <!-- REST -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest</artifactId>
@@ -33,19 +37,21 @@
             <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
 
-        <!-- LangChain4j Quarkus integration -->
+        <!-- LangChain4j — Ollama (LLM + embeddings) -->
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-ollama</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
+
+        <!-- LangChain4j — PgVector (banco vetorial RAG) -->
         <dependency>
             <groupId>io.quarkiverse.langchain4j</groupId>
             <artifactId>quarkus-langchain4j-pgvector</artifactId>
             <version>${langchain4j.version}</version>
         </dependency>
 
-        <!-- PostgreSQL para PgVector -->
+        <!-- PostgreSQL JDBC — necessário para PgVector + Flyway -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-postgresql</artifactId>
@@ -59,16 +65,32 @@
             <artifactId>quarkus-flyway</artifactId>
         </dependency>
 
-        <!-- Kafka Consumer — ingestão de eventos para RAG -->
+        <!-- Redis — memória de sessão do agente (TTL 30min) -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-redis-client</artifactId>
+        </dependency>
+
+        <!-- Kafka — consumer de catalog.item.updated (reindexação RAG) -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-messaging-kafka</artifactId>
         </dependency>
 
-        <!-- Redis — memória de sessão do agente -->
+        <!-- REST Client — consulta ms-pedidos e ms-catalogo via MCP tools -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-redis-client</artifactId>
+            <artifactId>quarkus-rest-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client-jackson</artifactId>
+        </dependency>
+
+        <!-- Fault Tolerance -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
         </dependency>
 
         <!-- Testes -->

@@ -13,14 +13,18 @@
     </parent>
 
     <artifactId>mcp-florinda-server</artifactId>
-    <name>Florinda Eats - MCP Server</name>
+    <name>Florinda Eats — MCP Server</name>
     <description>
-        Servidor MCP via SSE expondo tools de negocio para o agente IA.
-        getOrderStatus, cancelOrder, getRestaurantMenu. Implementado na Fase 3.
+        Servidor MCP via SSE expondo tools de negócio para o agente IA.
+        Tools: getOrderStatus, cancelOrder, getRestaurantMenu.
+        groupId correto: io.quarkiverse.mcp (validado).
+        versão: 1.0.0.CR1 (validada no ambiente).
+        Java 21 LTS.
     </description>
 
     <properties>
-        <mcp.version>1.0.0.CR1</mcp.version>
+        <!-- Versão validada — groupId io.quarkiverse.mcp (não langchain4j) -->
+        <quarkus.mcp.version>1.0.0.CR1</quarkus.mcp.version>
     </properties>
 
     <dependencies>
@@ -33,14 +37,14 @@
             <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
 
-        <!-- MCP Server via SSE -->
+        <!-- MCP Server via SSE — groupId CORRETO: io.quarkiverse.mcp -->
         <dependency>
             <groupId>io.quarkiverse.mcp</groupId>
             <artifactId>quarkus-mcp-server-sse</artifactId>
-            <version>${mcp.version}</version>
+            <version>${quarkus.mcp.version}</version>
         </dependency>
 
-        <!-- REST Client — chama ms-pedidos e ms-catalogo -->
+        <!-- REST Client — consome ms-pedidos e ms-catalogo -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-client</artifactId>

@@ -1,6 +1,8 @@
-# Florinda Eats Quickstart (Catalogo + Pedidos + Pagamentos + Notificacoes)
+# Florinda Eats Quickstart (Fase 1 · Fase 2 · Fase 3 IA)
 
-Guia rapido para subir a infraestrutura local, iniciar os modulos da fase 2 e validar o fluxo no Swagger.
+Guia rapido para subir a infraestrutura local, iniciar os modulos das fases 1-3 e validar o fluxo no Swagger.
+
+> **Fase 3 (IA):** para documentacao completa do agente, veja `AgenteFlorindaIA.md`.
 
 ## 1) Pre-requisitos
 
@@ -84,6 +86,38 @@ docker run --name florinda-kafka -p 9092:9092 -d `
 docker start florinda-kafka
 ```
 
+### 4.6 Ollama (LLM local — Fase 3) - porta 11434
+
+```powershell
+# Primeira vez: cria container com volume persistente
+docker run --name florinda-ollama -p 11434:11434 -v florinda-ollama-data:/root/.ollama -d ollama/ollama
+
+# Proximas vezes
+docker start florinda-ollama
+```
+
+### 4.7 Baixar modelos LLM (apenas uma vez — ~3 GB)
+
+```powershell
+Start-Sleep -Seconds 8
+docker exec florinda-ollama ollama pull llama3.2
+docker exec florinda-ollama ollama pull nomic-embed-text
+```
+
+Ou use o script:
+
+```powershell
+.\dev-up.ps1 -PullModels
+```
+
+### 4.8 Criar banco ia_suporte_db (apenas uma vez)
+
+```powershell
+docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"
+```
+
+> O `dev-up.ps1` ja faz isso automaticamente.
+
 ## 5) Subir os modulos (terminais separados)
 
 ```powershell
@@ -93,13 +127,19 @@ Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
 Alternativa rapida (infra + opcionalmente modulos) com script:
 
 ```powershell
-# apenas validar pre-requisitos e garantir containers
+# apenas validar pre-requisitos e garantir containers (Fase 1+2+3)
 .\dev-up.ps1
 
-# garantir containers, limpar portas dos modulos e abrir 4 terminais com quarkus:dev
+# garantir containers + baixar modelos Ollama (primeira vez, ~3 GB)
+.\dev-up.ps1 -PullModels
+
+# garantir containers, limpar portas dos modulos e abrir 6 terminais com quarkus:dev
 .\dev-up.ps1 -StartModules -KillPorts
 
-# igual ao comando acima, mas aguardando /q/health e falhando se algum modulo nao subir
+# igual ao acima, mas tambem baixa modelos Ollama na primeira execucao
+.\dev-up.ps1 -StartModules -KillPorts -PullModels
+
+# igual ao acima, aguardando /q/health e falhando se algum modulo nao subir
 .\dev-up.ps1 -StartModules -KillPorts -WaitForHealth
 
 # se algum container estiver corrompido/travado, recrie tudo da infra
@@ -112,7 +152,9 @@ Se algum modulo falhar com porta em uso, rode antes:
 netstat -ano | findstr :8080
 netstat -ano | findstr :8081
 netstat -ano | findstr :8082
+netstat -ano | findstr :8083
 netstat -ano | findstr :8084
+netstat -ano | findstr :8085
 
 # mate o PID em LISTENING da porta que estiver ocupada
 taskkill /PID <pid> /F
@@ -142,6 +184,18 @@ mvn -pl ms-pagamentos quarkus:dev
 mvn -pl ms-notificacoes quarkus:dev
 ```
 
+### Terminal E - ms-ia-suporte (8083) — Fase 3
+
+```powershell
+mvn -pl ms-ia-suporte quarkus:dev
+```
+
+### Terminal F - mcp-florinda-server (8085) — Fase 3
+
+```powershell
+mvn -pl mcp-florinda-server quarkus:dev
+```
+
 ## 6) Swagger / Dev UI
 
 - Catalogo Swagger: `http://localhost:8082/swagger-ui`
@@ -152,6 +206,10 @@ mvn -pl ms-notificacoes quarkus:dev
 - Pagamentos Dev UI: `http://localhost:8081/q/dev-ui`
 - Notificacoes Swagger: `http://localhost:8084/swagger-ui`
 - Notificacoes Dev UI: `http://localhost:8084/q/dev-ui`
+- **IA Suporte Swagger: `http://localhost:8083/swagger-ui`** ← Fase 3
+- **IA Suporte Dev UI: `http://localhost:8083/q/dev-ui`** ← Fase 3
+- **MCP Server Swagger: `http://localhost:8085/swagger-ui`** ← Fase 3
+- **MCP Server Dev UI: `http://localhost:8085/q/dev-ui`** ← Fase 3
 
 ## 7) Fluxo de teste sugerido no Swagger
 
@@ -241,20 +299,78 @@ Depois de criar pedido em `ms-pedidos`, acompanhe:
 - logs de `ms-pagamentos` para `order.created`
 - logs de `ms-pedidos` para atualizacao por `payment.approved|payment.failed`
 - logs de `ms-notificacoes` para notificacoes dos topicos consumidos
+- logs de `ms-ia-suporte` para reindexacao via `catalog.item.updated`
 
 Referencia de fluxo completo: `SAGA-KAFKA.md`.
 
-## 9) Problemas comuns
+## 9) Agente IA — Fase 3 (ms-ia-suporte + mcp-florinda-server)
+
+Apos subir os dois novos modulos, siga o roteiro completo em `AgenteFlorindaIA.md`.
+
+Fluxo resumido de teste:
+
+**Passo 1 — Verificar modelos no Ollama**
+
+```powershell
+curl http://localhost:11434/api/tags
+```
+
+**Passo 2 — Chat simples com o agente**
+
+```powershell
+curl -X POST http://localhost:8083/v1/ia/chat `
+  -H "Content-Type: application/json" `
+  -d '{"pergunta":"Qual o prazo de entrega?","sessaoId":"sessao-01"}'
+```
+
+**Passo 3 — Ingerir FAQ no RAG**
+
+O seed inicial (11 FAQs) e aplicado automaticamente pelo Flyway na primeira subida do `ms-ia-suporte`.
+
+Para ingerir manualmente via Swagger (`POST /v1/ia/admin/ingerir`):
+
+```json
+{
+  "conteudo": "Como cancelo um pedido? O cancelamento e permitido enquanto o pedido estiver Pendente ou Confirmado.",
+  "fonte": "faq",
+  "fonteId": "faq-cancelamento-01"
+}
+```
+
+**Passo 4 — Usar Postman**
+
+Importe o arquivo `florinda-ia-postman.json` da raiz do projeto no Postman.
+
+**Passo 5 — Health check de todos os modulos**
+
+```powershell
+curl http://localhost:8082/q/health   # ms-catalogo
+curl http://localhost:8080/q/health   # ms-pedidos
+curl http://localhost:8081/q/health   # ms-pagamentos
+curl http://localhost:8084/q/health   # ms-notificacoes
+curl http://localhost:8083/q/health   # ms-ia-suporte
+curl http://localhost:8085/q/health   # mcp-florinda-server
+```
+
+## 10) Problemas comuns
 
 - `mvn : O termo 'mvn' nao e reconhecido`:
   - adicione no terminal atual: `$env:Path += ";C:\Users\marcu\tools\apache-maven-3.9.9\bin"`.
   - alternativa: `& "C:\Users\marcu\tools\apache-maven-3.9.9\bin\mvn.cmd" -pl ms-catalogo quarkus:dev`.
 - `Connection refused` no startup:
   - confira se os containers corretos estao ativos (`docker ps`).
-  - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka).
+  - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka), `11434` (Ollama).
+- `Connection refused: localhost:11434` (ms-ia-suporte):
+  - Ollama nao esta rodando. Execute `docker start florinda-ollama`.
+- `model llama3.2 not found` ou `model nomic-embed-text not found`:
+  - modelos LLM nao foram baixados. Execute `.\dev-up.ps1 -PullModels`.
+- `ia_suporte_db does not exist`:
+  - crie o banco: `docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"`.
+- `pgvector extension not found`:
+  - use `pgvector/pgvector:pg16` como imagem do Postgres (nao `postgres:16`).
 - `[ERROR] Failed to execute goal ... quarkus-maven-plugin:...:dev`:
   - geralmente e erro secundario: o app caiu antes (porta ocupada, banco indisponivel, credencial incorreta) ou o processo foi interrompido.
-  - verifique conflito de porta: `netstat -ano | findstr :8080` (troque para `8081`, `8082`, `8084` conforme o modulo).
+  - verifique conflito de porta: `netstat -ano | findstr :8080` (troque para `8081`, `8082`, `8083`, `8084`, `8085` conforme o modulo).
   - finalize o PID conflitante: `taskkill /PID <pid> /F` e suba novamente.
 - `dev-up` terminou, mas modulo ficou offline:
   - o script apenas abre os terminais; se o Quarkus falhar no startup, a porta nao sobe.
@@ -270,18 +386,20 @@ Referencia de fluxo completo: `SAGA-KAFKA.md`.
   - isso sozinho nao e erro; o Docker ainda esta baixando a imagem.
   - analise a proxima linha para ver se houve falha real de tag.
 
-## 10) Validacao rapida final
+## 11) Validacao rapida final
 
 ```powershell
-curl http://localhost:8082/q/health
-curl http://localhost:8080/q/health
-curl http://localhost:8081/q/health
-curl http://localhost:8084/q/health
+curl http://localhost:8082/q/health   # ms-catalogo
+curl http://localhost:8080/q/health   # ms-pedidos
+curl http://localhost:8081/q/health   # ms-pagamentos
+curl http://localhost:8084/q/health   # ms-notificacoes
+curl http://localhost:8083/q/health   # ms-ia-suporte (Fase 3)
+curl http://localhost:8085/q/health   # mcp-florinda-server (Fase 3)
 ```
 
-Se os quatro retornarem `UP`, ambiente pronto para testes funcionais no Swagger.
+Se os seis retornarem `UP`, ambiente completo pronto para testes funcionais no Swagger.
 
-## 11) Testes de integracao (fase 4)
+## 12) Testes de integracao (fase 4)
 
 Atualmente existem cenarios em `testes-integracao/` para:
 
