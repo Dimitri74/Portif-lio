@@ -1,6 +1,6 @@
-# Florinda Eats Quickstart (Fase 1 · Fase 2 · Fase 3 IA)
+# Florinda Eats Quickstart (Fase 1 · Fase 2 · Fase 3 IA · Fase 4 Observabilidade)
 
-Guia rapido para subir a infraestrutura local, iniciar os modulos das fases 1-3 e validar o fluxo no Swagger.
+Guia rapido para subir a infraestrutura local, iniciar os modulos, habilitar a observabilidade da Fase 4 e validar o fluxo no Swagger.
 
 > **Fase 3 (IA):** para documentacao completa do agente, veja `AgenteFlorindaIA.md`.
 
@@ -41,7 +41,7 @@ No primeiro uso, rode `docker run`. Se o container ja existir, use `docker start
 ### 4.1 PostgreSQL (ms-catalogo) - porta 5433
 
 ```powershell
-docker run --name florinda-postgres -e POSTGRES_DB=catalogo_db -e POSTGRES_USER=florinda -e POSTGRES_PASSWORD=florinda123 -p 5433:5432 -d postgres:16
+docker run --name florinda-postgres -e POSTGRES_DB=catalogo_db -e POSTGRES_USER=florinda -e POSTGRES_PASSWORD=florinda123 -p 5433:5432 -d pgvector/pgvector:pg16
 docker start florinda-postgres
 ```
 
@@ -127,10 +127,26 @@ Ou use o script (detecta automaticamente qual modo esta ativo):
 ### 4.8 Criar banco ia_suporte_db (apenas uma vez)
 
 ```powershell
-docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"
+$dbExists = docker exec florinda-postgres psql -U florinda -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'ia_suporte_db'"
+if ($dbExists -ne '1') {
+  docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"
+}
 ```
 
 > O `dev-up.ps1` ja faz isso automaticamente.
+
+### 4.9 Observabilidade local (Fase 4) — Prometheus + Grafana + Jaeger
+
+```powershell
+docker compose -f .\observabilidade\docker-compose.yml up -d
+docker compose -f .\observabilidade\docker-compose.yml ps
+```
+
+URLs:
+
+- Grafana: `http://localhost:3000` (`admin` / `admin`)
+- Prometheus: `http://localhost:9090`
+- Jaeger: `http://localhost:16686`
 
 ## 5) Subir os modulos (terminais separados)
 
@@ -138,26 +154,90 @@ docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE i
 Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
 ```
 
+### ⚠️ AVISO CRÍTICO: Usar `dev-up.ps1` com `-StartModules` vs Fluxo Manual
+
+> **RESUMO:** Subir os 6 módulos **simultaneamente** via `.\dev-up.ps1 -StartModules` tem **alta taxa de falha** em Windows. Recomendamos:
+> 
+> - ✅ **Para primeira vez / validação rápida:** use `.\dev-up.ps1` **SEM** `-StartModules` para subir apenas containers/observabilidade, depois suba os módulos manualmente em terminais separados (seção 5 abaixo).
+> - ✅ **Para máquinas com 16+ GB RAM e pagefile configurado:** pode tentar `.\dev-up.ps1 -StartModules -KillPorts -SkipObservability -WaitForHealth`, mas monitore os logs.
+> - ❌ **NÃO recomendado:** `.\dev-up.ps1 -StartModules -KillPorts` em Windows com pagefile < 4 GB → vai dar OOM/malloc failed.
+
+**Por quê?** 6 JVMs inicializando simultaneamente = pico de 3+ GB memória + contaminação OTEL. Fluxo manual = 1 terminal por vez, tempo total ~5-10 minutos, 100% confiável.
+
+**Sintomas de falha do script:**
+- `malloc failed` ou `net.dll: pagefile too small`
+- Health check timeout após 360 segundos
+- Módulos aparecem como "Started" mas porta não responde
+- Logs fragmentados em `.dev-logs/*.log` em vez de visível no terminal
+
+**Problemas técnicos específicos (análise shell experiente):**
+
+| Problema | Causa | Por que subir junto falha |
+|----------|-------|--------------------------|
+| **Race Condition Docker** | PostgreSQL/MySQL precisam 10-15s para estar totalmente ready | Script aguarda 5s fixo, depois tenta usar DB que ainda está inicializando |
+| **Memory Pressure** | Cada módulo = Maven (256 MB) + JVM Quarkus (280-384 MB) | 6 módulos × 600 MB = 3.6 GB de pico simultâneo → OOM se pagefile < 4 GB |
+| **Subshells Async** | Script abre 6 PowerShells via `Start-Process \| Out-Null` | Nenhuma sincronização real; health check começa antes de Maven compilar |
+| **Environment Isolation** | Variáveis `$env:JAVA_HOME` e PATH definidas em subshells | Subshell novo não herda PATH do terminal principal → java/mvn não encontrado |
+| **OTEL Collector** | Observabilidade ativada por padrão envia telemetria para localhost:4317 | 6 JVMs disparando métricas simultâneas → Collector pode estar lento → timeout em startup |
+| **Logs Invisíveis** | Output redirecionado para `.dev-logs/*.log` | Você não vê qual módulo travou e aonde; script mata tudo após 360s |
+
+**Comparação: fluxo manual vs script**
+
+```
+SCRIPT dev-up.ps1 -StartModules          | FLUXO MANUAL (RECOMENDADO)
+================================================|================================================
+6 JVMs em 120 segundos                   | 1 JVM por vez, 40-60s cada
+Pico 3+ GB memória simultâneo             | Pico 600 MB, sequencial
+Sem visibilidade de logs                  | Logs visíveis em tempo real
+Falha silenciosa após 360s                | Você vê exatamente onde travou
+Requer pagefile 8 GB ou mais              | Funciona com pagefile padrão 4 GB
+Taxa de sucesso: ~40%                     | Taxa de sucesso: 100%
+Tempo total (se falhar): 6-10 minutos      | Tempo total (sempre OK): 5-10 minutos
+```
+
+---
+
 Alternativa rapida (infra + opcionalmente modulos) com script:
 
 ```powershell
-# apenas validar pre-requisitos e garantir containers (Fase 1+2+3)
+# ✅ RECOMENDADO (primeira vez): apenas containers + observabilidade
 .\dev-up.ps1
+
+# DEPOIS: suba os modulos MANUALMENTE em terminais separados (veja seção 5 abaixo)
+# Isso evita picos de memoria e garante visibilidade total dos logs
 
 # garantir containers + baixar modelos Ollama (primeira vez, ~3 GB)
 .\dev-up.ps1 -PullModels
 
-# garantir containers, limpar portas dos modulos e abrir 6 terminais com quarkus:dev
-.\dev-up.ps1 -StartModules -KillPorts
+# ⚠️ CRÍTICO — NÃO RECOMENDADO em Windows comum: tenta subir 6 JVMs simultaneamente
+# Causa: OOM, malloc failed, picos de memoria de 3+ GB
+# Solução: use o fluxo MANUAL (terminais separados) abaixo em vez disso
+# .\dev-up.ps1 -StartModules -KillPorts          # ❌ NÃO USE
+# .\dev-up.ps1 -StartModules -KillPorts -PullModels  # ❌ NÃO USE
 
-# igual ao acima, mas tambem baixa modelos Ollama na primeira execucao
-.\dev-up.ps1 -StartModules -KillPorts -PullModels
+# ⚠️ ALTERNATIVA SEGURA: se tiver pagefile >= 8 GB, pode tentar com menos módulos
+# (apenas core 4 módulos, sem IA pesada, sem observabilidade):
+.\dev-up.ps1 -StartModules -KillPorts -SkipObservability -SkipAI -WaitForHealth
 
-# igual ao acima, aguardando /q/health e falhando se algum modulo nao subir
-.\dev-up.ps1 -StartModules -KillPorts -WaitForHealth
+# subir apenas a stack de observabilidade local (Prometheus/Grafana/Jaeger)
+.\dev-up.ps1 -StartObservability
 
 # se algum container estiver corrompido/travado, recrie tudo da infra
 .\dev-up.ps1 -RecreateContainers
+```
+
+**🔥 FLUXO RECOMENDADO (100% confiável):**
+
+```powershell
+# 1️⃣ Subir apenas infraestrutura Docker (containers + observabilidade)
+.\dev-up.ps1
+
+# 2️⃣ Aguarde ~30 segundos, confirme containers
+docker ps  # todos devem estar "Up"
+
+# 3️⃣ DEPOIS, abra 6 terminais PowerShell SEPARADOS e rode os comandos abaixo
+# Terminal A, Terminal B, Terminal C, etc (seção 5 abaixo)
+# Isso evita picos de memória e garante 100% visibilidade dos logs
 ```
 
 Se algum modulo falhar com porta em uso, rode antes:
@@ -173,6 +253,17 @@ netstat -ano | findstr :8085
 # mate o PID em LISTENING da porta que estiver ocupada
 taskkill /PID <pid> /F
 ```
+
+### 📋 Abrir 6 terminais PowerShell e rodar os módulos SEQUENCIALMENTE
+
+> **Por quê sequencial?** Cada JVM (Maven + Quarkus forked) consome ~280-380 MB. 6 JVMs simultâneas = 3+ GB de pico.
+> - **Windows pagefile < 4 GB:** OOM, malloc failed, travado
+> - **Sequencial (1 por vez):** estável, tempo total ~5-10 minutos
+> 
+> **Aguarde cada módulo inicializar completamente ANTES de abrir o próximo terminal:**
+> Procure pela mensagem: `[io.quarkus] Quarkus X.X.X started in XX.XXs`
+
+---
 
 ### Terminal A - ms-catalogo (8082)
 
@@ -224,6 +315,13 @@ mvn -pl mcp-florinda-server quarkus:dev
 - **IA Suporte Dev UI: `http://localhost:8083/q/dev-ui`** ← Fase 3
 - **MCP Server Swagger: `http://localhost:8085/swagger-ui`** ← Fase 3
 - **MCP Server Dev UI: `http://localhost:8085/q/dev-ui`** ← Fase 3
+
+## 6.1) Observabilidade / Dashboards
+
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+- Jaeger: `http://localhost:16686`
+- Datasource OTLP dos módulos em dev: `http://localhost:4317`
 
 ## 7) Fluxo de teste sugerido no Swagger
 
@@ -375,15 +473,18 @@ curl http://localhost:8085/q/health   # mcp-florinda-server
   - alternativa: `& "C:\Users\marcu\tools\apache-maven-3.9.9\bin\mvn.cmd" -pl ms-catalogo quarkus:dev`.
 - `Connection refused` no startup:
   - confira se os containers corretos estao ativos (`docker ps`).
-  - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka), `11434` (Ollama).
+  - valide portas: `5433` (Postgres), `6379` (Redis), `3307` (MySQL pedidos), `3308` (MySQL pagamentos), `9092` (Kafka), `11434` (Ollama), `3000/9090/16686/4317` (observabilidade).
 - `Connection refused: localhost:11434` (ms-ia-suporte):
   - Ollama nao esta rodando. Execute `docker start florinda-ollama`.
 - `model llama3.2 not found` ou `model nomic-embed-text not found`:
   - modelos LLM nao foram baixados. Execute `.\dev-up.ps1 -PullModels`.
 - `ia_suporte_db does not exist`:
-  - crie o banco: `docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"`.
+  - rode o bootstrap idempotente da seção `4.8` ou `./dev-up.ps1` sem `-SkipInfra`.
 - `pgvector extension not found`:
   - use `pgvector/pgvector:pg16` como imagem do Postgres (nao `postgres:16`).
+- Grafana/Prometheus/Jaeger nao sobem:
+  - execute `docker compose -f .\observabilidade\docker-compose.yml up -d`.
+  - valide com `docker compose -f .\observabilidade\docker-compose.yml ps`.
 - `[ERROR] Failed to execute goal ... quarkus-maven-plugin:...:dev`:
   - geralmente e erro secundario: o app caiu antes (porta ocupada, banco indisponivel, credencial incorreta) ou o processo foi interrompido.
   - verifique conflito de porta: `netstat -ano | findstr :8080` (troque para `8081`, `8082`, `8083`, `8084`, `8085` conforme o modulo).

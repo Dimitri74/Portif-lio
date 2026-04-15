@@ -1,0 +1,59 @@
+# ============================================================
+# Ingress — Florinda Eats (Minikube / Kind local)
+# Habilitar: minikube addons enable ingress
+# Adicionar em /etc/hosts: $(minikube ip) florinda.local
+# ============================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: florinda-ingress
+  namespace: florinda-app
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: florinda.local
+      http:
+        paths:
+          - path: /catalogo(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ms-catalogo
+                port:
+                  number: 8082
+
+          - path: /pedidos(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ms-pedidos
+                port:
+                  number: 8080
+
+          - path: /pagamentos(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ms-pagamentos
+                port:
+                  number: 8081
+
+          - path: /ia(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ms-ia-suporte
+                port:
+                  number: 8083
+
+          - path: /mcp(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: mcp-florinda-server
+                port:
+                  number: 8085

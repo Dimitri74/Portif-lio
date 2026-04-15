@@ -1,0 +1,281 @@
+# ============================================================
+# ms-pagamentos — Deployment K8s
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pagamentos
+  namespace: florinda-app
+  labels:
+    app: ms-pagamentos
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ms-pagamentos
+  template:
+    metadata:
+      labels:
+        app: ms-pagamentos
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path:   "/q/metrics"
+        prometheus.io/port:   "8081"
+    spec:
+      containers:
+        - name: ms-pagamentos
+          image: florinda/ms-pagamentos:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: florinda-config
+            - secretRef:
+                name: florinda-secrets
+          env:
+            - name: DB_JDBC_URL
+              value: "jdbc:mysql://mysql-pagamentos.florinda-infra.svc.cluster.local:3306/pagamentos_db"
+          resources:
+            requests:
+              memory: "192Mi"
+              cpu:    "150m"
+            limits:
+              memory: "384Mi"
+              cpu:    "500m"
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8081
+            initialDelaySeconds: 20
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-pagamentos
+  namespace: florinda-app
+spec:
+  selector:
+    app: ms-pagamentos
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP
+
+---
+# ============================================================
+# ms-notificacoes — Deployment K8s
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-notificacoes
+  namespace: florinda-app
+  labels:
+    app: ms-notificacoes
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-notificacoes
+  template:
+    metadata:
+      labels:
+        app: ms-notificacoes
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path:   "/q/metrics"
+        prometheus.io/port:   "8084"
+    spec:
+      containers:
+        - name: ms-notificacoes
+          image: florinda/ms-notificacoes:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: florinda-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu:    "100m"
+            limits:
+              memory: "256Mi"
+              cpu:    "300m"
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8084
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8084
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-notificacoes
+  namespace: florinda-app
+spec:
+  selector:
+    app: ms-notificacoes
+  ports:
+    - port: 8084
+      targetPort: 8084
+  type: ClusterIP
+
+---
+# ============================================================
+# ms-ia-suporte — Deployment K8s
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-ia-suporte
+  namespace: florinda-app
+  labels:
+    app: ms-ia-suporte
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-ia-suporte
+  template:
+    metadata:
+      labels:
+        app: ms-ia-suporte
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path:   "/q/metrics"
+        prometheus.io/port:   "8083"
+    spec:
+      containers:
+        - name: ms-ia-suporte
+          image: florinda/ms-ia-suporte:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: florinda-config
+            - secretRef:
+                name: florinda-secrets
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres.florinda-infra.svc.cluster.local:5432/ia_suporte_db"
+            - name: OLLAMA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: florinda-config
+                  key: OLLAMA_URL
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu:    "250m"
+            limits:
+              memory: "1Gi"
+              cpu:    "1000m"
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8083
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8083
+            initialDelaySeconds: 45
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-ia-suporte
+  namespace: florinda-app
+spec:
+  selector:
+    app: ms-ia-suporte
+  ports:
+    - port: 8083
+      targetPort: 8083
+  type: ClusterIP
+
+---
+# ============================================================
+# mcp-florinda-server — Deployment K8s
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-florinda-server
+  namespace: florinda-app
+  labels:
+    app: mcp-florinda-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcp-florinda-server
+  template:
+    metadata:
+      labels:
+        app: mcp-florinda-server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path:   "/q/metrics"
+        prometheus.io/port:   "8085"
+    spec:
+      containers:
+        - name: mcp-florinda-server
+          image: florinda/mcp-florinda-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - configMapRef:
+                name: florinda-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu:    "100m"
+            limits:
+              memory: "256Mi"
+              cpu:    "300m"
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8085
+            initialDelaySeconds: 15
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-florinda-server
+  namespace: florinda-app
+spec:
+  selector:
+    app: mcp-florinda-server
+  ports:
+    - port: 8085
+      targetPort: 8085
+  type: ClusterIP

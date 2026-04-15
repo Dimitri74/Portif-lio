@@ -1,0 +1,51 @@
+services:
+  florinda-prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: florinda-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/florinda-alerts.yml:/etc/prometheus/rules/florinda-alerts.yml:ro
+      - florinda-prometheus-data:/prometheus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  florinda-jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: florinda-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  florinda-grafana:
+    image: grafana/grafana:11.1.0
+    container_name: florinda-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - florinda-grafana-data:/var/lib/grafana
+    depends_on:
+      - florinda-prometheus
+      - florinda-jaeger
+
+volumes:
+  florinda-prometheus-data:
+  florinda-grafana-data:
+

@@ -1,0 +1,25 @@
+# ============================================================
+# Grafana — Datasources
+# Provisionamento automático: Prometheus + Jaeger
+# ============================================================
+
+apiVersion: 1
+
+datasources:
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://florinda-prometheus:9090
+    isDefault: true
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        - name: traceID
+          datasourceUid: jaeger
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    uid: jaeger
+    url: http://florinda-jaeger:16686

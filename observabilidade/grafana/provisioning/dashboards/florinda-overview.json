@@ -1,0 +1,127 @@
+{
+  "title": "Florinda Eats — Visão Geral",
+  "uid": "florinda-overview",
+  "tags": ["florinda-eats", "microsservicos"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Serviços UP / DOWN",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "up{job=~'ms-.*|mcp-.*'}",
+        "legendFormat": "{{ service }}"
+      }],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+          ]
+        }
+      }
+    },
+
+    {
+      "id": 2,
+      "title": "Requisições HTTP/s por serviço",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count[1m])) by (service)",
+        "legendFormat": "{{ service }}"
+      }]
+    },
+
+    {
+      "id": 3,
+      "title": "Latência P95 por serviço (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le, service)) * 1000",
+        "legendFormat": "P95 {{ service }}"
+      }]
+    },
+
+    {
+      "id": 4,
+      "title": "Taxa de erros 5xx",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{outcome='SERVER_ERROR'}[5m])) by (service)",
+        "legendFormat": "Erros {{ service }}"
+      }],
+      "fieldConfig": {
+        "defaults": { "color": { "fixedColor": "red", "mode": "fixed" } }
+      }
+    },
+
+    {
+      "id": 5,
+      "title": "JVM Heap usado (MB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [{
+        "expr": "jvm_memory_used_bytes{area='heap'} / 1024 / 1024",
+        "legendFormat": "{{ service }} heap"
+      }]
+    },
+
+    {
+      "id": 6,
+      "title": "Pedidos criados/min",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 20 },
+      "targets": [{
+        "expr": "sum(increase(http_server_requests_seconds_count{service='ms-pedidos', method='POST', uri='/v1/pedidos', outcome='SUCCESS'}[1m]))",
+        "legendFormat": "Pedidos/min"
+      }]
+    },
+
+    {
+      "id": 7,
+      "title": "Pagamentos aprovados/min",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 20 },
+      "targets": [{
+        "expr": "sum(increase(pagamentos_aprovados_total[1m]))",
+        "legendFormat": "Aprovados/min"
+      }]
+    },
+
+    {
+      "id": 8,
+      "title": "Circuit Breaker — estado",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 20 },
+      "targets": [{
+        "expr": "resilience4j_circuitbreaker_state",
+        "legendFormat": "{{ name }}"
+      }]
+    },
+
+    {
+      "id": 9,
+      "title": "Startup time (ms) — JVM vs Native",
+      "type": "bargauge",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 20 },
+      "targets": [{
+        "expr": "quarkus_startup_duration_seconds * 1000",
+        "legendFormat": "{{ service }}"
+      }],
+      "description": "Demonstra diferença de startup JVM vs GraalVM Native (ms-catalogo)"
+    }
+
+  ]
+}

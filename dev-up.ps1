@@ -1,7 +1,9 @@
 param(
     [switch]$StartModules,
+    [switch]$StartObservability,
     [switch]$KillPorts,
     [switch]$SkipInfra,
+    [switch]$SkipObservability,
     [switch]$DryRun,
     [switch]$RecreateContainers,
     [switch]$WaitForHealth,
@@ -14,6 +16,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogRoot = Join-Path $RepoRoot ".dev-logs"
+$ObservabilityComposeFile = Join-Path $RepoRoot "observabilidade\docker-compose.yml"
 
 function Write-Step {
     param([string]$Message)
@@ -199,6 +202,35 @@ use: .\dev-up.ps1 -SkipInfra -StartModules -KillPorts -WaitForHealth -SkipAI
 "@
 }
 
+function Ensure-ObservabilityStack {
+    if ($SkipObservability -and -not $StartObservability) {
+        Write-Host "[dev-up] Observability stack skipped (flag -SkipObservability ativo)" -ForegroundColor DarkGray
+        return
+    }
+
+    if (-not (Test-Path $ObservabilityComposeFile)) {
+        Write-Warning "Observability compose file not found: $ObservabilityComposeFile"
+        return
+    }
+
+    Write-Step "Ensuring Docker observability stack"
+
+    $composeArgs = @("compose", "-f", $ObservabilityComposeFile, "up", "-d")
+    $composeDisplay = "docker " + ($composeArgs -join ' ')
+
+    if ($DryRun) {
+        Write-Host "[dry-run] $composeDisplay" -ForegroundColor Yellow
+        return
+    }
+
+    $result = Invoke-ExternalDetailed -Command "docker" -Arguments $composeArgs
+    if ($result.ExitCode -ne 0) {
+        throw "Failed to start observability stack via docker compose."
+    }
+
+    Invoke-ExternalDetailed -Command "docker" -Arguments @("compose", "-f", $ObservabilityComposeFile, "ps") | Out-Null
+}
+
 function Test-PageFile {
     # Verifica se o pagefile do Windows e suficiente para 6 JVMs simultaneos.
     # OOM/net.dll errors no startup quase sempre indicam pagefile pequeno.
@@ -361,7 +393,8 @@ function Start-Modules {
         # Sem isso, o launcher Maven pode falhar com malloc/OutOfMemoryError antes de
         # sequer iniciar o Quarkus (comportamento observado em mcp-florinda-server).
         # -Djvm.args limita o heap do processo Quarkus forked separadamente.
-        $cmd = "Set-Location '$RepoRoot'; `$env:MAVEN_OPTS='-Xmx256m -Xms64m'; mvn -pl $($module.Name) `"-Djvm.args=$jvmArgs`" quarkus:dev *>&1 | Tee-Object -FilePath '$logPath'"
+        $otelDisabled = if ($SkipObservability -and -not $StartObservability) { 'true' } else { 'false' }
+        $cmd = "Set-Location '$RepoRoot'; `$env:MAVEN_OPTS='-Xmx256m -Xms64m'; `$env:OTEL_ENDPOINT='http://localhost:4317'; `$env:OTEL_SDK_DISABLED='$otelDisabled'; mvn -pl $($module.Name) `"-Djvm.args=$jvmArgs`" quarkus:dev *>&1 | Tee-Object -FilePath '$logPath'"
 
         if ($DryRun) {
             Write-Host "[dry-run] powershell -NoExit -Command `"$cmd`"" -ForegroundColor Yellow
@@ -472,11 +505,13 @@ if ($KillPorts) {
     Clear-ModulePorts
 }
 
-if (-not $SkipInfra) {
+if ((-not $SkipInfra) -or $StartObservability) {
     Write-Step "Ensuring Docker infrastructure"
     Ensure-DockerDaemon
 
-    Ensure-Container -Name "florinda-postgres" -RunArgs @(
+    if (-not $SkipInfra) {
+
+        Ensure-Container -Name "florinda-postgres" -RunArgs @(
         "run", "--name", "florinda-postgres",
         "-e", "POSTGRES_DB=catalogo_db",
         "-e", "POSTGRES_USER=florinda",
@@ -485,7 +520,7 @@ if (-not $SkipInfra) {
         "-d", "pgvector/pgvector:pg16"
     )
 
-    if (-not $DryRun) {
+        if (-not $DryRun) {
         # Aguarda postgres inicializar para criar o segundo banco
         Start-Sleep -Seconds 5
         $dbCheck = docker exec florinda-postgres psql -U florinda -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'ia_suporte_db'" 2>$null
@@ -495,13 +530,13 @@ if (-not $SkipInfra) {
         }
     }
 
-    Ensure-Container -Name "florinda-redis" -RunArgs @(
+        Ensure-Container -Name "florinda-redis" -RunArgs @(
         "run", "--name", "florinda-redis",
         "-p", "6379:6379",
         "-d", "redis:7"
     )
 
-    Ensure-Container -Name "florinda-mysql-pedidos" -RunArgs @(
+        Ensure-Container -Name "florinda-mysql-pedidos" -RunArgs @(
         "run", "--name", "florinda-mysql-pedidos",
         "-e", "MYSQL_ROOT_PASSWORD=root",
         "-e", "MYSQL_DATABASE=pedidos_db",
@@ -511,7 +546,7 @@ if (-not $SkipInfra) {
         "-d", "mysql:8.0"
     )
 
-    Ensure-Container -Name "florinda-mysql-pagamentos" -RunArgs @(
+        Ensure-Container -Name "florinda-mysql-pagamentos" -RunArgs @(
         "run", "--name", "florinda-mysql-pagamentos",
         "-e", "MYSQL_ROOT_PASSWORD=root",
         "-e", "MYSQL_DATABASE=pagamentos_db",
@@ -521,7 +556,7 @@ if (-not $SkipInfra) {
         "-d", "mysql:8.0"
     )
 
-    Ensure-Container -Name "florinda-kafka" -RunArgs @(
+        Ensure-Container -Name "florinda-kafka" -RunArgs @(
         "run", "--name", "florinda-kafka",
         "-p", "9092:9092",
         "-e", "KAFKA_NODE_ID=1",
@@ -544,8 +579,8 @@ if (-not $SkipInfra) {
     # 11434 (instalacao local), usa ele diretamente - sem container.
     # Apenas cria o container florinda-ollama se a porta estiver livre.
     # ------------------------------------------------------------------
-    $ollamaLocal = $false
-    if (-not $DryRun) {
+        $ollamaLocal = $false
+        if (-not $DryRun) {
         try {
             $null = Invoke-RestMethod -Uri "http://localhost:11434/api/tags" -TimeoutSec 3
             $ollamaLocal = $true
@@ -554,19 +589,19 @@ if (-not $SkipInfra) {
         catch {
             $ollamaLocal = $false
         }
-    }
+        }
 
-    if (-not $ollamaLocal) {
-        Ensure-Container -Name "florinda-ollama" -RunArgs @(
+        if (-not $ollamaLocal) {
+            Ensure-Container -Name "florinda-ollama" -RunArgs @(
             "run", "--name", "florinda-ollama",
             "-p", "11434:11434",
             "-v", "florinda-ollama-data:/root/.ollama",
             "-d", "ollama/ollama"
         )
-    }
+        }
 
-    if ($PullModels) {
-        if ($DryRun) {
+        if ($PullModels) {
+            if ($DryRun) {
             Write-Host "[dry-run] ollama pull llama3.2" -ForegroundColor Yellow
             Write-Host "[dry-run] ollama pull nomic-embed-text" -ForegroundColor Yellow
         }
@@ -614,8 +649,11 @@ if (-not $SkipInfra) {
             else {
                 Write-Host "nomic-embed-text already present."
             }
+            }
         }
     }
+
+    Ensure-ObservabilityStack
 
     if (-not $DryRun) {
         docker ps --format "table {{.Names}}`t{{.Status}}`t{{.Ports}}"
@@ -632,6 +670,9 @@ if ($StartModules) {
 
 Write-Step "Done."
 Write-Host "Tip: run '.\dev-up.ps1 -StartModules -KillPorts' to start infra + modules."
+Write-Host "Tip: by default the observability stack (Prometheus/Grafana/Jaeger) is started via Docker compose."
+Write-Host "Tip: run '.\dev-up.ps1 -StartObservability' to subir somente a observabilidade local."
+Write-Host "Tip: run '.\dev-up.ps1 -SkipObservability' to keep OTel disabled/silent in dev mode."
 Write-Host "Tip: run '.\dev-up.ps1 -StartModules -KillPorts -SkipAI' to start apenas os 4 modulos core (sem Ollama/LangChain4j)."
 Write-Host "Tip: run '.\dev-up.ps1 -PullModels' to download Ollama LLM models (first run, requires ~3 GB)."
 Write-Host "Tip: combine flags: '.\dev-up.ps1 -StartModules -KillPorts -PullModels -WaitForHealth'."

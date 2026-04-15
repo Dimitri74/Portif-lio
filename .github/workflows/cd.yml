@@ -1,0 +1,225 @@
+# ============================================================
+# CD Pipeline — Florinda Eats 2.0
+# Trigger: push em main (após CI passar)
+# Jobs: build JVM images → build Native (ms-catalogo) → deploy K8s
+# ============================================================
+
+name: CD — Build Images e Deploy K8s
+
+on:
+  push:
+    branches: [main]
+
+env:
+  JAVA_VERSION: "21"
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/florinda
+
+jobs:
+
+  # ----------------------------------------------------------
+  # Job 1: Build e push das imagens JVM (todos os serviços)
+  # ----------------------------------------------------------
+  build-jvm-images:
+    name: Build Imagens JVM
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Login GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push — ms-pedidos (Jib)
+        run: |
+          cd ms-pedidos
+          mvn package -DskipTests \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+      - name: Build e push — ms-pagamentos (Jib)
+        run: |
+          cd ms-pagamentos
+          mvn package -DskipTests \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+      - name: Build e push — ms-notificacoes (Jib)
+        run: |
+          cd ms-notificacoes
+          mvn package -DskipTests \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+      - name: Build e push — ms-ia-suporte (Jib)
+        run: |
+          cd ms-ia-suporte
+          mvn package -DskipTests \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+      - name: Build e push — mcp-florinda-server (Jib)
+        run: |
+          cd mcp-florinda-server
+          mvn package -DskipTests \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+  # ----------------------------------------------------------
+  # Job 2: Build Native do ms-catalogo (GraalVM)
+  # Roda em paralelo com o Job 1 — é o mais demorado
+  # ----------------------------------------------------------
+  build-native-catalogo:
+    name: Build Native GraalVM — ms-catalogo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup GraalVM 21
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: "21"
+          distribution: graalvm-community
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          native-image-job-reports: true
+
+      - name: Login GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Native + push (container build via Docker)
+        run: |
+          cd ms-catalogo
+          mvn package -Pnative -DskipTests \
+            -Dquarkus.native.container-build=true \
+            -Dquarkus.container-image.push=true \
+            -Dquarkus.container-image.registry=${{ env.REGISTRY }} \
+            -Dquarkus.container-image.group=${{ github.repository_owner }} \
+            -Dquarkus.container-image.name=ms-catalogo-native \
+            -Dquarkus.container-image.tag=${{ github.sha }} \
+            --batch-mode --no-transfer-progress
+
+      - name: Upload relatório Native Image
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-image-report
+          path: ms-catalogo/target/native-image-source-jar/reports/
+          retention-days: 30
+
+  # ----------------------------------------------------------
+  # Job 3: Deploy no Minikube (ambiente de staging/local)
+  # ----------------------------------------------------------
+  deploy-k8s:
+    name: Deploy Kubernetes (Minikube)
+    runs-on: ubuntu-latest
+    needs: [build-jvm-images, build-native-catalogo]
+    environment: staging
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Minikube
+        uses: medyagh/setup-minikube@latest
+        with:
+          kubernetes-version: v1.29.0
+
+      - name: Habilita Ingress
+        run: minikube addons enable ingress
+
+      - name: Deploy namespaces e config
+        run: kubectl apply -f kubernetes/infra/00-namespaces.yml
+
+      - name: Deploy infraestrutura base
+        run: kubectl apply -f kubernetes/infra/dependencies.yml
+
+      - name: Aguarda infraestrutura base ficar Ready
+        run: |
+          kubectl rollout status deployment/postgres         -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/redis            -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/mysql-pedidos    -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/mysql-pagamentos -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/kafka            -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/ollama           -n florinda-infra --timeout=180s
+          kubectl rollout status deployment/jaeger           -n florinda-obs --timeout=180s
+
+      - name: Deploy ms-catalogo (native)
+        run: |
+          sed -i "s|florinda/ms-catalogo:native|${{ env.REGISTRY }}/${{ github.repository_owner }}/ms-catalogo-native:${{ github.sha }}|g" \
+            kubernetes/ms-catalogo/deployment.yml
+          kubectl apply -f kubernetes/ms-catalogo/deployment.yml
+
+      - name: Deploy ms-pedidos
+        run: |
+          sed -i "s|florinda/ms-pedidos:latest|${{ env.REGISTRY }}/${{ github.repository_owner }}/ms-pedidos:${{ github.sha }}|g" \
+            kubernetes/ms-pedidos/deployment.yml
+          kubectl apply -f kubernetes/ms-pedidos/deployment.yml
+
+      - name: Deploy demais serviços
+        run: |
+          for svc in ms-pagamentos ms-notificacoes ms-ia-suporte mcp-florinda-server; do
+            sed -i "s|florinda/${svc}:latest|${{ env.REGISTRY }}/${{ github.repository_owner }}/${svc}:${{ github.sha }}|g" \
+              kubernetes/infra/outros-servicos.yml
+          done
+          kubectl apply -f kubernetes/infra/outros-servicos.yml
+
+      - name: Deploy Ingress
+        run: kubectl apply -f kubernetes/infra/ingress.yml
+
+      - name: Aguarda pods ficarem Ready
+        run: |
+          kubectl rollout status deployment/ms-catalogo    -n florinda-app --timeout=120s
+          kubectl rollout status deployment/ms-pedidos     -n florinda-app --timeout=120s
+          kubectl rollout status deployment/ms-pagamentos  -n florinda-app --timeout=120s
+          kubectl rollout status deployment/ms-notificacoes -n florinda-app --timeout=120s
+          kubectl rollout status deployment/ms-ia-suporte   -n florinda-app --timeout=120s
+          kubectl rollout status deployment/mcp-florinda-server -n florinda-app --timeout=120s
+
+      - name: Smoke test — health checks
+        run: |
+          kubectl run smoke-test --image=curlimages/curl --restart=Never -n florinda-app \
+            --command -- sh -c "
+              curl -sf http://ms-catalogo:8082/q/health/ready &&
+              curl -sf http://ms-pedidos:8080/q/health/ready  &&
+              curl -sf http://ms-pagamentos:8081/q/health/ready &&
+              curl -sf http://ms-notificacoes:8084/q/health/ready &&
+              curl -sf http://ms-ia-suporte:8083/q/health/ready &&
+              curl -sf http://mcp-florinda-server:8085/q/health/ready &&
+              echo 'Todos os health checks passaram!'
+            "
+          kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/smoke-test -n florinda-app --timeout=120s
+          kubectl logs smoke-test -n florinda-app
+          kubectl delete pod smoke-test -n florinda-app

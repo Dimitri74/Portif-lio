@@ -1,0 +1,68 @@
+{
+  "title": "ms-catalogo — JVM vs Native GraalVM",
+  "uid": "florinda-native-comparison",
+  "tags": ["florinda-eats", "native", "graalvm"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Startup time (ms)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "targets": [{
+        "expr": "quarkus_startup_duration_seconds{service='ms-catalogo'} * 1000",
+        "legendFormat": "startup ms"
+      }],
+      "description": "JVM ~2000ms · Native ~30ms"
+    },
+
+    {
+      "id": 2,
+      "title": "Heap usado (MB)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "targets": [{
+        "expr": "jvm_memory_used_bytes{area='heap', service='ms-catalogo'} / 1024 / 1024",
+        "legendFormat": "heap MB"
+      }],
+      "description": "JVM ~200MB · Native ~30MB"
+    },
+
+    {
+      "id": 3,
+      "title": "CPU usage (%)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "targets": [{
+        "expr": "process_cpu_usage{service='ms-catalogo'} * 100",
+        "legendFormat": "CPU %"
+      }]
+    },
+
+    {
+      "id": 4,
+      "title": "Latência P99 ao longo do tempo",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{service='ms-catalogo'}[5m])) by (le)) * 1000",
+        "legendFormat": "P99 (ms)"
+      }]
+    },
+
+    {
+      "id": 5,
+      "title": "Throughput (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "targets": [{
+        "expr": "sum(rate(http_server_requests_seconds_count{service='ms-catalogo'}[1m]))",
+        "legendFormat": "req/s"
+      }]
+    }
+
+  ]
+}

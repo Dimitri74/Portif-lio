@@ -64,6 +64,8 @@ Além dos pré-requisitos da Fase 2 (Docker, JDK 21, Maven 3.9+):
 - Fase 2 funcional: containers `florinda-postgres`, `florinda-redis`, `florinda-kafka` ativos
 
 > **Ollama nativo x Docker:** se o Ollama estiver instalado na máquina, o `dev-up.ps1` detecta automaticamente na porta 11434 e **não cria nenhum container Docker** para ele. Os modelos ficam no diretório local do Ollama (`~/.ollama/models`).
+>
+> **Observabilidade da Fase 4:** o mesmo `dev-up.ps1` agora também pode subir `Prometheus`, `Grafana` e `Jaeger` via Docker local para capturar métricas e traces dos módulos IA/MCP.
 
 ### Verificar Ollama e modelos instalados
 
@@ -98,7 +100,7 @@ ollama pull nomic-embed-text
 # Na raiz do projeto, com Docker ativo:
 Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
 
-# 1. Garantir toda a infra (inclui Ollama) + abrir terminais dos 6 módulos
+# 1. Garantir toda a infra (inclui observabilidade e Ollama) + abrir terminais dos 6 módulos
 .\dev-up.ps1 -StartModules -KillPorts
 
 # 2. Aguardar health + ver quais estão online
@@ -106,6 +108,9 @@ Set-Location "C:\Users\marcu\workspace\Projeto\florinda-eats"
 
 # 3. (Apenas uma vez) baixar modelos LLM no Ollama
 .\dev-up.ps1 -PullModels
+
+# 4. Se quiser abrir somente a stack observability
+.\dev-up.ps1 -StartObservability
 ```
 
 > O flag `-PullModels` pode ser combinado com qualquer outro: `.\dev-up.ps1 -StartModules -KillPorts -PullModels`
@@ -133,8 +138,11 @@ docker start florinda-postgres
 # Se for primeira vez:
 docker run --name florinda-postgres -e POSTGRES_DB=catalogo_db -e POSTGRES_USER=florinda -e POSTGRES_PASSWORD=florinda123 -p 5433:5432 -d pgvector/pgvector:pg16
 
-# Criar o banco ia_suporte_db (uma vez)
-docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db" 2>$null
+# Criar o banco ia_suporte_db de forma idempotente
+$dbExists = docker exec florinda-postgres psql -U florinda -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = 'ia_suporte_db'"
+if ($dbExists -ne '1') {
+  docker exec florinda-postgres psql -U florinda -d postgres -c "CREATE DATABASE ia_suporte_db"
+}
 
 docker start florinda-redis
 docker start florinda-mysql-pedidos
@@ -174,6 +182,16 @@ docker exec florinda-ollama ollama pull nomic-embed-text
 ```
 
 > O `dev-up.ps1` detecta automaticamente qual cenário se aplica — não é necessário configurar nada manualmente.
+
+#### Passo 5 — Observabilidade local (opcional, recomendado)
+
+```powershell
+docker compose -f .\observabilidade\docker-compose.yml up -d
+```
+
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+- Jaeger: `http://localhost:16686`
 
 #### Passo 4 — Verificar containers ativos
 

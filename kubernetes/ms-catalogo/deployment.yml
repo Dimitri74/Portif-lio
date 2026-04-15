@@ -1,0 +1,98 @@
+# ============================================================
+# ms-catalogo — Deployment K8s (GraalVM Native)
+# Imagem nativa: startup ~30ms, heap ~30MB
+# HPA: escala de 1 a 10 pods baseado em CPU
+# ============================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-catalogo
+  namespace: florinda-app
+  labels:
+    app: ms-catalogo
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ms-catalogo
+  template:
+    metadata:
+      labels:
+        app: ms-catalogo
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path:   "/q/metrics"
+        prometheus.io/port:   "8082"
+    spec:
+      containers:
+        - name: ms-catalogo
+          # Imagem nativa gerada por: mvn package -Pnative -Dquarkus.native.container-build=true
+          image: florinda/ms-catalogo:native
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: florinda-config
+            - secretRef:
+                name: florinda-secrets
+          env:
+            - name: DB_URL
+              value: "jdbc:postgresql://postgres.florinda-infra.svc.cluster.local:5432/catalogo_db"
+          # Native: recursos muito menores que JVM
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu:    "50m"
+            limits:
+              memory: "128Mi"
+              cpu:    "500m"
+          livenessProbe:
+            httpGet:
+              path: /q/health/live
+              port: 8082
+            initialDelaySeconds: 2    # Native sobe em ~30ms — delay pequeno
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /q/health/ready
+              port: 8082
+            initialDelaySeconds: 2
+            periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ms-catalogo
+  namespace: florinda-app
+spec:
+  selector:
+    app: ms-catalogo
+  ports:
+    - port: 8082
+      targetPort: 8082
+  type: ClusterIP
+---
+# HPA — autoscaling baseado em CPU
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ms-catalogo-hpa
+  namespace: florinda-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ms-catalogo
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

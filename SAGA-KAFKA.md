@@ -64,9 +64,9 @@ Pedido           LOG: "Pag.    Pedido              LOG: "Falha
 
 ## Como rodar o fluxo completo localmente
 
-```bash
+```powershell
 # 1. Sobe infra
-docker compose up -d kafka mysql postgres redis
+pwsh -File .\dev-up.ps1 -SkipObservability
 
 # 2. Sobe ms-catalogo (porta 8082) — precisa estar UP para ms-pedidos validar restaurante
 cd ms-catalogo && mvn quarkus:dev &

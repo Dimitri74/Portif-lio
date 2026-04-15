@@ -1,0 +1,52 @@
+# ============================================================
+# Florinda Eats — Namespaces K8s
+# Aplicar: kubectl apply -f 00-namespaces.yml
+# ============================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: florinda-app
+  labels:
+    project: florinda-eats
+    env: local
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: florinda-infra
+  labels:
+    project: florinda-eats
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: florinda-obs
+  labels:
+    project: florinda-eats
+---
+# ConfigMap com variáveis compartilhadas entre serviços
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: florinda-config
+  namespace: florinda-app
+data:
+  KAFKA_BOOTSTRAP:   "kafka.florinda-infra.svc.cluster.local:9092"
+  REDIS_URL:         "redis://redis.florinda-infra.svc.cluster.local:6379"
+  OLLAMA_URL:        "http://ollama.florinda-infra.svc.cluster.local:11434"
+  OTEL_ENDPOINT:     "http://jaeger.florinda-obs.svc.cluster.local:4317"
+  CATALOGO_URL:      "http://ms-catalogo.florinda-app.svc.cluster.local:8082"
+  PEDIDOS_URL:       "http://ms-pedidos.florinda-app.svc.cluster.local:8080"
+  MCP_URL:           "http://mcp-florinda-server.florinda-app.svc.cluster.local:8085"
+---
+# Secret com credenciais dos bancos
+apiVersion: v1
+kind: Secret
+metadata:
+  name: florinda-secrets
+  namespace: florinda-app
+type: Opaque
+stringData:
+  DB_USER:     florinda
+  DB_PASSWORD: florinda123

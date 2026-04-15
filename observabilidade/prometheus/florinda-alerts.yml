@@ -1,0 +1,73 @@
+# ============================================================
+# Alertas Prometheus — Florinda Eats 2.0
+# Localização: /etc/prometheus/rules/florinda-alerts.yml
+# ============================================================
+
+groups:
+
+  - name: disponibilidade
+    rules:
+
+      - alert: ServicoIndisponivel
+        expr: up{job=~"ms-.*|mcp-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Serviço {{ $labels.service }} está DOWN"
+          description: "O serviço {{ $labels.service }} não responde há mais de 1 minuto."
+
+      - alert: HealthCheckFalhando
+        expr: quarkus_health_status{status="DOWN"} > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Health check falhou em {{ $labels.service }}"
+
+  - name: performance
+    rules:
+
+      - alert: LatenciaAltaHTTP
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_server_requests_seconds_bucket[5m])
+          ) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latência P95 > 2s em {{ $labels.service }}"
+          description: "P95={{ $value }}s no serviço {{ $labels.service }}"
+
+      - alert: TaxaErros5xx
+        expr: |
+          rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m])
+          / rate(http_server_requests_seconds_count[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taxa de erros 5xx > 5% em {{ $labels.service }}"
+
+  - name: negocio
+    rules:
+
+      - alert: PagamentosRejeitadosAlto
+        expr: |
+          rate(pagamentos_rejeitados_total[10m]) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Alta taxa de pagamentos rejeitados"
+          description: "Mais de 30% dos pagamentos estão sendo rejeitados."
+
+      - alert: CircuitBreakerAberto
+        expr: |
+          resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Circuit Breaker aberto em {{ $labels.service }}"
