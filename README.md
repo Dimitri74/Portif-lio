@@ -338,7 +338,7 @@ Na fase 4, a meta e executar essa suite antes de commit (ou pre-push) e como gat
 - [x] Fase 1 — Monorepo + ms-catalogo + ms-pedidos + infraestrutura local
 - [x] Fase 2 — ms-pagamentos + ms-notificacoes + saga Kafka ponta a ponta
 - [x] Fase 3 — ms-ia-suporte (RAG + LangChain4j) + mcp-florinda-server (MCP SSE)
-- [ ] Fase 4 — observabilidade completa + Kubernetes + CI/CD com testes de integracao
+- [x] Fase 4 — observabilidade completa + Kubernetes + CI/CD com testes de integracao
 
 ---
 
