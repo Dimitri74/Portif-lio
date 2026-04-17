@@ -1,5 +1,6 @@
 package br.com.florinda.catalogo.service;
 
+import br.com.florinda.catalogo.domain.Cardapio;
 import br.com.florinda.catalogo.domain.Restaurante;
 import br.com.florinda.catalogo.domain.StatusRestaurante;
 import br.com.florinda.catalogo.dto.RestauranteDTO;
@@ -83,8 +84,44 @@ public class RestauranteService {
             RestauranteDTO.CriarRestauranteRequest request) {
         Restaurante restaurante = mapper.toEntity(request);
         restaurante.persist();
-        LOG.infof("Restaurante criado: %s [%s]", restaurante.nome, restaurante.id);
+
+        // Cria automaticamente um cardápio padrão para o restaurante
+        Cardapio cardapio = new Cardapio();
+        cardapio.restaurante = restaurante;
+        cardapio.nome = "Cardápio de " + restaurante.nome;
+        cardapio.descricao = "Cardápio principal";
+        cardapio.ativo = true;
+        cardapio.persist();
+
+        LOG.infof("Restaurante criado: %s [%s] com cardápio [%s]",
+                  restaurante.nome, restaurante.id, cardapio.id);
         return mapper.toResponse(restaurante);
+    }
+
+    public List<br.com.florinda.catalogo.dto.CardapioDTO.CardapioResponse> listarCardapios(UUID restauranteId) {
+        Restaurante restaurante = buscarEntidade(restauranteId);
+        return Cardapio.findByRestaurante(restaurante.id)
+                .stream()
+                .map(c -> new br.com.florinda.catalogo.dto.CardapioDTO.CardapioResponse(
+                        c.id, c.nome, c.descricao, c.ativo, c.criadoEm))
+                .toList();
+    }
+
+    @Transactional
+    public br.com.florinda.catalogo.dto.CardapioDTO.CardapioResponse criarCardapio(
+            UUID restauranteId,
+            br.com.florinda.catalogo.dto.CardapioDTO.CriarCardapioRequest request) {
+        Restaurante restaurante = buscarEntidade(restauranteId);
+        Cardapio cardapio = new Cardapio();
+        cardapio.restaurante = restaurante;
+        cardapio.nome = request != null && request.nome() != null
+                ? request.nome() : "Cardápio de " + restaurante.nome;
+        cardapio.descricao = request != null ? request.descricao() : "Cardápio principal";
+        cardapio.ativo = true;
+        cardapio.persist();
+        LOG.infof("Cardápio criado para restaurante %s: [%s]", restauranteId, cardapio.id);
+        return new br.com.florinda.catalogo.dto.CardapioDTO.CardapioResponse(
+                cardapio.id, cardapio.nome, cardapio.descricao, cardapio.ativo, cardapio.criadoEm);
     }
 
     @Transactional

@@ -1,0 +1,22 @@
+16:07:51 INFO  [or.fl.co.FlywayExecutor] Database: jdbc:postgresql://localhost:5433/ia_suporte_db (PostgreSQL 16.13)
+16:07:52 INFO  [or.fl.co.in.co.DbValidate] Successfully validated 3 migrations (execution time 00:00.016s)
+16:07:52 INFO  [or.fl.co.in.co.DbMigrate] Current version of schema "public": 2
+16:07:52 INFO  [or.fl.co.in.co.DbMigrate] Migrating schema "public" to version "3 - fix langchain4j pgvector schema"
+16:07:52 INFO  [or.fl.co.in.co.DbMigrate] Successfully applied 1 migration to schema "public", now at version v3 (execution time 00:00.067s)
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18229: Configured topics for channel 'order-status-ia-in': [order.status.updated]
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18214: Key deserializer omitted, using String as default
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18229: Configured topics for channel 'catalog-updated-in': [catalog.item.updated]
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18214: Key deserializer omitted, using String as default
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18257: Kafka consumer kafka-consumer-order-status-ia-in, connected to Kafka brokers 'localhost:9092', belongs to the 'ms-ia-suporte-order-status' consumer group and is configured to poll records from [order.status.updated]
+16:07:52 INFO  [io.sm.re.me.kafka] SRMSG18257: Kafka consumer kafka-consumer-catalog-updated-in, connected to Kafka brokers 'localhost:9092', belongs to the 'ms-ia-suporte-catalog' consumer group and is configured to poll records from [catalog.item.updated]
+16:07:52 INFO  [io.quarkus] ms-ia-suporte 1.0.0-SNAPSHOT on JVM (powered by Quarkus 3.17.5) started in 2.295s. Listening on: http://localhost:8083
+16:07:52 INFO  [io.quarkus] Profile dev activated. Live Coding activated.
+16:07:52 INFO  [io.quarkus] Installed features: [agroal, cdi, flyway, hibernate-orm, hibernate-orm-panache, hibernate-validator, jdbc-postgresql, kafka-client, kubernetes, langchain4j, langchain4j-ollama, langchain4j-pgvector, messaging, messaging-kafka, micrometer, narayana-jta, opentelemetry, qute, redis-client, rest, rest-client, rest-client-jackson, rest-jackson, smallrye-context-propagation, smallrye-fault-tolerance, smallrye-health, smallrye-openapi, swagger-ui, vertx]
+16:07:52 INFO  [io.qu.de.de.RuntimeUpdatesProcessor] Live reload total time: 7.132s 
+16:07:52 INFO  [io.qu.de.de.RuntimeUpdatesProcessor] Live reload took more than 4 seconds, you may want to enable instrumentation based reload (quarkus.live-reload.instrumentation=true). This allows small changes to take effect without restarting Quarkus.
+16:07:52 INFO  [br.co.fl.ia.in.ra.RagIngestaoService] RAG seed: todos os embeddings ja foram gerados.
+16:08:15 INFO  [io.qu.de.de.RuntimeUpdatesProcessor] File change detected: C:\Users\marcu\workspace\Projeto\florinda-eats\ms-ia-suporte\src\main\resources\application.properties
+16:08:15 INFO  [io.qu.de.de.RuntimeUpdatesProcessor] Restarting quarkus due to changes in application.properties.
+16:08:15 INFO  [io.sm.re.me.kafka] SRMSG18224: Executing consumer revoked re-balance listener for group 'ms-ia-suporte-order-status'
+16:08:15 INFO  [io.sm.re.me.kafka] SRMSG18224: Executing consumer revoked re-balance listener for group 'ms-ia-suporte-catalog'
+16:08:15 INFO  [io.quarkus] ms-ia-suporte stopped in 0.566s

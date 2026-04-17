@@ -133,6 +133,28 @@ public class PedidoService {
     }
 
     // -----------------------------------------------------------
+    // Avança manualmente para o próximo status (demo / simulação)
+    // CONFIRMADO → PREPARANDO → SAIU_PARA_ENTREGA → ENTREGUE
+    // -----------------------------------------------------------
+    @Transactional
+    public PedidoDTO.PedidoResponse avancarStatus(UUID id) {
+        Pedido pedido = buscarEntidade(id);
+        StatusPedido anterior = pedido.status;
+
+        switch (pedido.status) {
+            case CONFIRMADO        -> pedido.iniciarPreparo();
+            case PREPARANDO        -> pedido.sairParaEntrega();
+            case SAIU_PARA_ENTREGA -> pedido.entregar();
+            default -> throw new IllegalStateException(
+                "Pedido no status " + pedido.status + " não pode ser avançado manualmente.");
+        }
+
+        publicarStatusAtualizado(pedido, anterior);
+        LOG.infof("Pedido %s avançado de %s para %s (manual)", id, anterior, pedido.status);
+        return mapper.toResponse(pedido);
+    }
+
+    // -----------------------------------------------------------
     // Chamado pelo consumer Kafka (payment.failed)
     // -----------------------------------------------------------
     @Transactional

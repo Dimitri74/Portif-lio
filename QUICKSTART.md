@@ -1,5 +1,10 @@
 # Florinda Eats Quickstart (Fase 1 · Fase 2 · Fase 3 IA · Fase 4 Observabilidade)
 
+## #ATENÇÃO# para iniciar o projeto com sucesso
+
+1. Rode: `.\dev-up.ps1`
+2. Depois, rode os projetos separadamente (um por terminal).
+
 Guia rapido para subir a infraestrutura local, iniciar os modulos, habilitar a observabilidade da Fase 4 e validar o fluxo no Swagger.
 
 > **Fase 3 (IA):** para documentacao completa do agente, veja `AgenteFlorindaIA.md`.

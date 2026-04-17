@@ -1,5 +1,6 @@
 package br.com.florinda.catalogo.resource;
 
+import br.com.florinda.catalogo.dto.CardapioDTO;
 import br.com.florinda.catalogo.dto.RestauranteDTO;
 import br.com.florinda.catalogo.service.RestauranteService;
 import jakarta.inject.Inject;
@@ -90,6 +91,24 @@ public class RestauranteResource {
     public Response suspender(@PathParam("id") UUID id) {
         service.suspender(id);
         return Response.noContent().build();
+    }
+
+    @GET
+    @Path("/{id}/cardapios")
+    @Operation(summary = "Lista cardápios do restaurante")
+    public List<CardapioDTO.CardapioResponse> listarCardapios(@PathParam("id") UUID id) {
+        return service.listarCardapios(id);
+    }
+
+    @POST
+    @Path("/{id}/cardapios")
+    @Operation(summary = "Cria cardápio para o restaurante")
+    @APIResponse(responseCode = "201", description = "Cardápio criado")
+    public Response criarCardapio(
+            @PathParam("id") UUID id,
+            CardapioDTO.CriarCardapioRequest request) {
+        CardapioDTO.CardapioResponse response = service.criarCardapio(id, request);
+        return Response.status(Response.Status.CREATED).entity(response).build();
     }
 
     @DELETE

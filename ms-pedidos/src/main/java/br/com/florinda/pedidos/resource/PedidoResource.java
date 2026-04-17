@@ -67,4 +67,13 @@ public class PedidoResource {
             @Valid PedidoDTO.CancelarPedidoRequest request) {
         return service.cancelar(id, request.motivo());
     }
+
+    @PUT
+    @Path("/{id}/avancar")
+    @Operation(summary = "Avança o status do pedido para o próximo (simulação)")
+    @APIResponse(responseCode = "200", description = "Status avançado com sucesso")
+    @APIResponse(responseCode = "422", description = "Status atual não permite avanço manual")
+    public PedidoDTO.PedidoResponse avancarStatus(@PathParam("id") UUID id) {
+        return service.avancarStatus(id);
+    }
 }

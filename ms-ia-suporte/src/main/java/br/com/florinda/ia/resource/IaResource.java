@@ -68,6 +68,20 @@ public class IaResource {
     }
 
     // -----------------------------------------------------------
+    // Admin — reprocessa embeddings pendentes (embedding = NULL)
+    // -----------------------------------------------------------
+    @POST
+    @Path("/admin/reprocessar")
+    @Operation(summary = "Reprocessa embeddings pendentes no PgVector (admin)")
+    public Response reprocessarEmbeddings() {
+        int total = ingestaoService.processarEmbeddingsPendentes();
+        return Response.ok(java.util.Map.of(
+            "processados", total,
+            "timestamp",   OffsetDateTime.now().toString()
+        )).build();
+    }
+
+    // -----------------------------------------------------------
     // Health estendido — verifica Ollama e PgVector
     // -----------------------------------------------------------
     @GET

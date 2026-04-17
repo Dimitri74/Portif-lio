@@ -10,21 +10,28 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.EmbeddingStoreIngestor;
+import io.quarkus.runtime.Startup;
+import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Pipeline de ingestão RAG:
  * Texto → Chunking → Embedding (nomic-embed-text) → PgVector
  *
- * Usado em:
- * - Seed inicial de FAQ (startup)
- * - Atualização automática via evento Kafka catalog.item.updated
- * - Ingestão manual via endpoint admin
+ * No startup, processa automaticamente todos os registros do seed SQL
+ * que têm embedding = NULL, gerando os vetores via Ollama e persistindo
+ * via JDBC direto (preservando os IDs originais do seed).
  */
+@Startup
 @ApplicationScoped
 public class RagIngestaoService {
 
@@ -35,6 +42,86 @@ public class RagIngestaoService {
 
     @Inject
     EmbeddingStore<TextSegment> embeddingStore;
+
+    @Inject
+    DataSource dataSource;
+
+    // Executa no boot em thread virtual para não bloquear a inicialização
+    @PostConstruct
+    void agendarProcessamentoInicial() {
+        Thread.ofVirtual()
+              .name("rag-seed-startup")
+              .start(this::processarEmbeddingsPendentes);
+    }
+
+    /**
+     * Lê todos os registros com embedding = NULL, gera os vetores via
+     * nomic-embed-text (Ollama) e persiste com UPDATE JDBC preservando
+     * os IDs do seed SQL.
+     *
+     * @return número de embeddings gerados com sucesso
+     */
+    public int processarEmbeddingsPendentes() {
+        List<String[]> pendentes = new ArrayList<>();
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT id::text, conteudo FROM knowledge_embeddings " +
+                     "WHERE embedding IS NULL ORDER BY criado_em")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    pendentes.add(new String[]{ rs.getString("id"), rs.getString("conteudo") });
+                }
+            }
+        } catch (Exception e) {
+            LOG.errorf("Falha ao consultar embeddings pendentes: %s", e.getMessage());
+            return 0;
+        }
+
+        if (pendentes.isEmpty()) {
+            LOG.info("RAG seed: todos os embeddings ja foram gerados.");
+            return 0;
+        }
+
+        LOG.infof("RAG seed: gerando embeddings para %d registros pendentes...", pendentes.size());
+        int processados = 0;
+
+        for (String[] row : pendentes) {
+            String id      = row[0];
+            String conteudo = row[1];
+            try {
+                Embedding embedding = embeddingModel.embed(conteudo).content();
+                String vectorStr    = toVectorString(embedding.vector());
+
+                try (Connection conn = dataSource.getConnection();
+                     PreparedStatement upd = conn.prepareStatement(
+                             "UPDATE knowledge_embeddings " +
+                             "SET embedding = ?::vector, embedding_id = id, text = conteudo, atualizado_em = NOW() " +
+                             "WHERE id = ?::uuid")) {
+                    upd.setString(1, vectorStr);
+                    upd.setString(2, id);
+                    upd.executeUpdate();
+                }
+                processados++;
+                LOG.infof("Embedding gerado: %s (%d/%d)", id, processados, pendentes.size());
+            } catch (Exception e) {
+                LOG.warnf("Falha ao gerar embedding para [%s]: %s", id, e.getMessage());
+            }
+        }
+
+        LOG.infof("RAG seed concluido: %d/%d embeddings gerados.", processados, pendentes.size());
+        return processados;
+    }
+
+    // Converte float[] para o formato pgvector: [0.1,0.2,...]
+    private String toVectorString(float[] vector) {
+        StringBuilder sb = new StringBuilder("[");
+        for (int i = 0; i < vector.length; i++) {
+            sb.append(vector[i]);
+            if (i < vector.length - 1) sb.append(",");
+        }
+        return sb.append("]").toString();
+    }
 
     /**
      * Ingere um único documento — chunking + embedding + store.

@@ -42,7 +42,8 @@ public class AgenteService {
     @Inject EmbeddingModel embeddingModel;
     @Inject EmbeddingStore<TextSegment> embeddingStore;
 
-    @Timeout(value = 60, unit = ChronoUnit.SECONDS)
+    // Timeout aumentado para 150s: embedding (até 60s) + LLM llama3.2 (até 90s)
+    @Timeout(value = 150, unit = ChronoUnit.SECONDS)
     @Fallback(fallbackMethod = "fallbackResposta")
     public IaDTO.RespostaResponse responder(IaDTO.PerguntaRequest request) {
 
@@ -95,11 +96,11 @@ public class AgenteService {
     }
 
     // -----------------------------------------------------------
-    // Fallback — quando o LLM não responde a tempo
+    // Fallback — quando o LLM não responde a tempo ou lança exceção
     // -----------------------------------------------------------
-    public IaDTO.RespostaResponse fallbackResposta(IaDTO.PerguntaRequest request) {
-        LOG.warnf("Fallback ativado — LLM indisponível para sessão: %s",
-                  request.sessaoId());
+    public IaDTO.RespostaResponse fallbackResposta(IaDTO.PerguntaRequest request, Throwable cause) {
+        String motivo = cause != null ? cause.getClass().getSimpleName() + ": " + cause.getMessage() : "desconhecido";
+        LOG.errorf("Fallback ativado para sessão %s — causa: %s", request.sessaoId(), motivo);
         return new IaDTO.RespostaResponse(
                 "Estou com dificuldades técnicas no momento. " +
                 "Por favor, tente novamente em alguns instantes. " +

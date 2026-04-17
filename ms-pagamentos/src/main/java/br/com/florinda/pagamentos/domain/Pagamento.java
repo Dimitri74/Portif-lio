@@ -4,6 +4,8 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -17,16 +19,19 @@ import java.util.UUID;
 public class Pagamento extends PanacheEntityBase {
 
     @Id
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(columnDefinition = "CHAR(36)")
     public UUID id = UUID.randomUUID();
 
     // RN06: UNIQUE garante idempotência — mesmo pedidoId não gera dois pagamentos
     @NotNull
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "pedido_id", nullable = false, unique = true,
             columnDefinition = "CHAR(36)")
     public UUID pedidoId;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "cliente_id", nullable = false, columnDefinition = "CHAR(36)")
     public UUID clienteId;
 

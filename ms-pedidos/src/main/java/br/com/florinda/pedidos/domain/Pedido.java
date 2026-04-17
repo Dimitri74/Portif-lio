@@ -4,6 +4,8 @@ import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -16,14 +18,17 @@ import java.util.UUID;
 public class Pedido extends PanacheEntityBase {
 
     @Id
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(columnDefinition = "CHAR(36)")
     public UUID id = UUID.randomUUID();
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "cliente_id", nullable = false, columnDefinition = "CHAR(36)")
     public UUID clienteId;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "restaurante_id", nullable = false, columnDefinition = "CHAR(36)")
     public UUID restauranteId;
 

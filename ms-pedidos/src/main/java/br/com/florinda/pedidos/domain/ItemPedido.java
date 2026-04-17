@@ -3,6 +3,8 @@ package br.com.florinda.pedidos.domain;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -12,6 +14,7 @@ import java.util.UUID;
 public class ItemPedido extends PanacheEntityBase {
 
     @Id
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(columnDefinition = "CHAR(36)")
     public UUID id = UUID.randomUUID();
 
@@ -20,6 +23,7 @@ public class ItemPedido extends PanacheEntityBase {
     public Pedido pedido;
 
     @NotNull
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "item_id", nullable = false, columnDefinition = "CHAR(36)")
     public UUID itemId;
 

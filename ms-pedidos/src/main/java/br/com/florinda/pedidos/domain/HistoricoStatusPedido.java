@@ -2,6 +2,8 @@ package br.com.florinda.pedidos.domain;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -11,6 +13,7 @@ import java.util.UUID;
 public class HistoricoStatusPedido extends PanacheEntityBase {
 
     @Id
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(columnDefinition = "CHAR(36)")
     public UUID id = UUID.randomUUID();
 
