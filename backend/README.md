@@ -344,3 +344,69 @@ Na fase 4, a meta e executar essa suite antes de commit (ou pre-push) e como gat
 
 ## Autor
 Marcus Dimitri - Projeto de portfolio da pos-graduacao Java Elite - UNIPDS.
+
+---
+
+## 🎥 Demonstração
+
+<p align="center">
+  <strong>Florinda Eats 2.0 — Plataforma Completa de Food Delivery com IA</strong>
+</p>
+
+### 🖥️ Interface do Cliente (Next.js)
+
+<p align="center">
+  <img src="screenshots/01-dashboard-cliente.png" alt="Dashboard do Cliente com KPIs" width="800">
+  <br><strong>Dashboard do Cliente</strong> — Visão geral com pedidos do dia, receita total e status dos pedidos.
+</p>
+
+<p align="center">
+  <img src="screenshots/02-dashboard-com-chat-ia.png" alt="Dashboard com Agente IA Florinda" width="800">
+  <br><strong>Agente IA Florinda</strong> — Chat inteligente integrado respondendo dúvidas sobre formas de pagamento e status de pedidos em tempo real.
+</p>
+
+<p align="center">
+  <img src="screenshots/03-lista-restaurantes.png" alt="Lista de Restaurantes disponíveis" width="800">
+  <br><strong>Lista de Restaurantes</strong> — Interface de escolha de restaurantes com filtros, avaliações e tempo de entrega.
+</p>
+
+<p align="center">
+  <img src="screenshots/04-itens-cardapio.png" alt="Cardápio detalhado do restaurante" width="800">
+  <br><strong>Cardápio do Restaurante</strong> — Visualização de itens, preços, descrições e botão de adicionar ao carrinho.
+</p>
+
+<p align="center">
+  <img src="screenshots/05-carrinho-pedido.png" alt="Carrinho de compras com itens adicionados" width="800">
+  <br><strong>Carrinho de Compras</strong> — Resumo dos itens selecionados, valores individuais e total do pedido.
+</p>
+
+<p align="center">
+  <img src="screenshots/06-finalizar-pedido.png" alt="Tela de Finalizar Pedido" width="800">
+  <br><strong>Finalizar Pedido</strong> — Formulário de endereço de entrega e confirmação do pedido.
+</p>
+
+<p align="center">
+  <img src="screenshots/07-pedido-realizado.png" alt="Pedido realizado com rastreamento" width="800">
+  <br><strong>Pedido Realizado</strong> — Confirmação do pedido com status de rastreamento em tempo real.
+</p>
+
+### 📊 Dashboard Administrativo
+
+<p align="center">
+  <img src="screenshots/08-dashboard-admin.png" alt="Dashboard Administrativo com métricas" width="800">
+  <br><strong>Dashboard Administrativo</strong> — Visão geral completa para o gerente com KPIs, gráficos de receita e pedidos por status.
+</p>
+
+### 📈 Observabilidade
+
+<p align="center">
+  <img src="screenshots/09-prometheus-metrics.png" alt="Prometheus Metrics" width="800">
+  <br><strong>Prometheus + Grafana</strong> — Monitoramento de métricas do sistema em tempo real.
+</p>
+
+<p align="center">
+  <img src="screenshots/10-jaeger-traces.png" alt="Jaeger Distributed Tracing" width="800">
+  <br><strong>Jaeger Tracing</strong> — Distributed Tracing mostrando o fluxo completo das requisições entre microsserviços.
+</p>
+
+---
