@@ -26,6 +26,7 @@
 ## 📋 Índice
 
 - [Visão Geral](#-visão-geral)
+- [🎥 Demonstração](#-demonstração)
 - [Arquitetura](#-arquitetura)
 - [Estrutura do Repositório](#-estrutura-do-repositório)
 - [Backend — Microsserviços](#-backend--microsserviços-quarkus)
@@ -55,6 +56,60 @@ O **Florinda Eats 2.0** é uma plataforma completa de food delivery construída 
 | 🔁 Resiliência | Circuit Breaker, Retry, Timeout, Fallback |
 | 🧪 Testes | Unitários + Integração com Testcontainers |
 | 🚀 CI/CD | GitHub Actions com pipeline completo |
+
+---
+
+## 🎥 Demonstração
+
+<p align="center">
+  <strong>Florinda Eats 2.0 — Plataforma Completa de Food Delivery com IA</strong>
+</p>
+
+### 🖥️ Interface do Cliente (Next.js)
+
+<p align="center">
+  <img src="screenshots/01-dashboard-cliente.png" alt="Dashboard do Cliente" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/02-dashboard-com-chat-ia.png" alt="Dashboard com Agente IA aberto" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/03-lista-restaurantes.png" alt="Lista de Restaurantes - Faça seu Pedido" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/04-itens-cardapio.png" alt="Cardápio - Itens do Restaurante" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/05-carrinho-pedido.png" alt="Carrinho de Compras" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/06-finalizar-pedido.png" alt="Finalizar Pedido" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/07-pedido-realizado.png" alt="Pedido Confirmado e Rastreamento" width="800">
+</p>
+
+### 📊 Dashboard Administrativo & IA
+
+<p align="center">
+  <img src="screenshots/08-dashboard-admin.png" alt="Dashboard Administrativo com KPIs" width="800">
+</p>
+
+### 📈 Observabilidade
+
+<p align="center">
+  <img src="screenshots/09-prometheus-metrics.png" alt="Prometheus - Métricas" width="800">
+</p>
+
+<p align="center">
+  <img src="screenshots/10-jaeger-traces.png" alt="Jaeger - Distributed Tracing" width="800">
+</p>
 
 ---
 
@@ -473,8 +528,8 @@ kubectl get pods -n florinda-app
 
 | Workflow | Trigger | Etapas |
 |---|---|---|
-| `ci.yml` | Push / PR → main | Build → Testes Unitários → Testes Integração → Qualidade |
-| `cd.yml` | Push → main | Build Jib → Build Native GraalVM → Deploy Minikube → Smoke Test |
+| `ci.yml` | Push / PR → main | Build → Testes Unitários → Testes de Integração → Qualidade |
+| `cd.yml` | Push → main | Build Jib (JVM) + Build Native (GraalVM) → Deploy Minikube → Smoke Test |
 
 ---
 
@@ -514,4 +569,3 @@ Pós-Graduação Java Elite — UNIPDS
 <sub>Florinda Eats 2.0 — Portfólio de Pós-Graduação Java Elite · UNIPDS · 2026</sub>
 
 </div>
-
