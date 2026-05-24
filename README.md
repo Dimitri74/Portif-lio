@@ -2,6 +2,7 @@
 
 <img src="https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white"/>
 <img src="https://img.shields.io/badge/Quarkus-3.17.5-4695EB?style=for-the-badge&logo=quarkus&logoColor=white"/>
+<img src="https://img.shields.io/badge/Flutter-3.29-02569B?style=for-the-badge&logo=flutter&logoColor=white"/>
 <img src="https://img.shields.io/badge/Next.js-15-000000?style=for-the-badge&logo=nextdotjs&logoColor=white"/>
 <img src="https://img.shields.io/badge/Apache_Kafka-3.9-231F20?style=for-the-badge&logo=apachekafka&logoColor=white"/>
 <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white"/>
@@ -31,6 +32,7 @@
 - [Estrutura do Repositório](#-estrutura-do-repositório)
 - [Backend — Microsserviços](#-backend--microsserviços-quarkus)
 - [Frontend — Dashboard & App](#-frontend--dashboard--app-nextjs)
+- [📱 Mobile — App Flutter](#-mobile--app-flutter)
 - [Stack Tecnológica Completa](#-stack-tecnológica-completa)
 - [Fluxo SAGA com Kafka](#-fluxo-saga-com-kafka)
 - [Observabilidade](#-observabilidade)
@@ -52,7 +54,8 @@ O **Florinda Eats 2.0** é uma plataforma completa de food delivery construída 
 | 🔌 Protocolo MCP | Model Context Protocol para tools de IA |
 | 📊 Observabilidade | OpenTelemetry + Prometheus + Grafana + Jaeger |
 | ☸️ Containerização | Docker Compose + Kubernetes (Minikube) + GraalVM Native |
-| 🖥️ Frontend | Dashboard administrativo + App de pedidos em Next.js 15 |
+| 🖥️ Frontend Web | Dashboard administrativo + App de pedidos em Next.js 15 |
+| 📱 Mobile | App Android/iOS nativo em Flutter 3 + Dart, integrado aos microsserviços |
 | 🔁 Resiliência | Circuit Breaker, Retry, Timeout, Fallback |
 | 🧪 Testes | Unitários + Integração com Testcontainers |
 | 🚀 CI/CD | GitHub Actions com pipeline completo |
@@ -167,17 +170,28 @@ O **Florinda Eats 2.0** é uma plataforma completa de food delivery construída 
 Portifolio-UNIPDS/
 │
 ├── backend/                          # 🔵 Microsserviços Java/Quarkus
-│   ├── ms-catalogo/                  #    Catálogo de restaurantes e cardápios
-│   ├── ms-pedidos/                   #    Gestão de pedidos
-│   ├── ms-pagamentos/                #    Processamento de pagamentos
-│   ├── ms-notificacoes/              #    Notificações via Kafka
-│   ├── ms-ia-suporte/                #    Agente IA com RAG
-│   ├── mcp-florinda-server/          #    MCP Server (tools para IA)
+│   ├── ms-catalogo/                  #    Catálogo de restaurantes e cardápios (:8082)
+│   ├── ms-pedidos/                   #    Gestão de pedidos (:8080)
+│   ├── ms-pagamentos/                #    Processamento de pagamentos (:8081)
+│   ├── ms-notificacoes/              #    Notificações via Kafka (:8084)
+│   ├── ms-ia-suporte/                #    Agente IA com RAG (:8083)
+│   ├── mcp-florinda-server/          #    MCP Server (tools para IA) (:8085)
 │   ├── kubernetes/                   #    Manifests K8s
 │   ├── observabilidade/              #    Docker Compose + Grafana + Prometheus
 │   ├── testes-integracao/            #    Suite Testcontainers
 │   ├── .github/workflows/            #    CI/CD GitHub Actions
 │   └── pom.xml                       #    Maven monorepo root
+│
+├── mobile/                           # 📱 App Mobile Flutter (Android/iOS)
+│   ├── lib/
+│   │   ├── core/                     #    API client (Dio), constants, session
+│   │   ├── features/                 #    restaurantes, cardapio, carrinho,
+│   │   │                             #    pedido, pagamento, ia_chat
+│   │   └── shared/                   #    theme, widgets globais
+│   ├── android/                      #    Configurações Android nativas
+│   ├── web/                          #    Suporte web (Chrome/Edge)
+│   ├── pubspec.yaml                  #    Dependências Dart/Flutter
+│   └── quickstart.md                 #    Guia de execução do mobile
 │
 └── frontend/                         # 🟢 Dashboard & App Next.js 15
     ├── src/app/                      #    Pages (App Router)
@@ -261,6 +275,74 @@ Interface moderna construída com **Next.js 15 App Router**, **TypeScript**, **T
 - **`CartDrawer`** — Carrinho lateral com gestão de estado via `useCart` hook
 - **`OrderTracking`** — Rastreamento de pedido em tempo real
 - **`StatsCard`** — Cards de métricas com ícones Lucide React
+
+---
+
+## 📱 Mobile — App Flutter
+
+App nativo para Android e iOS construído com **Flutter 3** e **Dart**, consumindo diretamente os microsserviços Quarkus via HTTP (Dio).
+
+### Telas e Funcionalidades
+
+| Tela | Rota | Funcionalidade |
+|---|---|---|
+| **Restaurantes** | `/` | Lista restaurantes com busca e filtro por categoria. Indicador de status (Aberto/Fechado). |
+| **Cardápio** | `/cardapio/:id` | Itens do cardápio com preço, foto e disponibilidade. Adiciona ao carrinho com controle de quantidade. |
+| **Checkout** | `/checkout` | Resumo do pedido, endereço de entrega e seleção de forma de pagamento. |
+| **Tracking** | `/tracking/:pedidoId` | Acompanhamento do pedido em tempo real com stepper de status (polling 5s). |
+| **Chat IA** | `/chat` | Assistente conversacional Florinda integrado ao `ms-ia-suporte` (RAG + Ollama). |
+
+### Arquitetura Mobile
+
+```
+Flutter App (Dart)
+│
+├── Provider (estado global)
+│   ├── CarrinhoProvider   — carrinho de compras em memória
+│   └── ChatProvider       — histórico e estado do chat IA
+│
+├── Repositories (HTTP via Dio)
+│   ├── RestaurantesRepository  → ms-catalogo:8082
+│   ├── CardapioRepository      → ms-catalogo:8082
+│   ├── PedidoRepository        → ms-pedidos:8080
+│   └── IaRepository            → ms-ia-suporte:8083
+│
+└── Pagamento via Kafka (automático)
+    └── ms-pagamentos:8081 consome evento order.created
+```
+
+### Stack Mobile
+
+| Tecnologia | Versão | Função |
+|---|---|---|
+| **Flutter** | 3.29 | Framework UI multiplataforma (Android, iOS, Web, Desktop) |
+| **Dart** | 3.7 | Linguagem tipada compilada para ARM nativo e JavaScript |
+| **Dio** | 5.4 | Cliente HTTP com interceptors, timeout e tratamento de erros |
+| **Provider** | 6.1 | Gerenciamento de estado reativo com `ChangeNotifier` |
+| **GoRouter** | 13.0 | Roteamento declarativo com deep links e path parameters |
+| **SharedPreferences** | 2.2 | Persistência local do `sessaoId` para o chat IA |
+| **UUID** | 4.3 | Geração de identificadores únicos para sessão do chat |
+| **Intl** | 0.19 | Formatação de moeda (`R$ 0,00`) e datas em pt-BR |
+| **CachedNetworkImage** | 3.3 | Cache de imagens dos restaurantes e cardápios |
+| **flutter_animate** | 4.5 | Animações declarativas nas transições de tela |
+
+### Integração com o SAGA Kafka
+
+O mobile **não chama** `POST /v1/pagamentos` diretamente. O fluxo correto é:
+
+```
+Mobile                    ms-pedidos              ms-pagamentos
+  │                           │                        │
+  ├─ POST /v1/pedidos ───────►│                        │
+  │                           ├─ publica order.created►│
+  │◄─ PedidoResponse (id) ───┤                        │
+  │                           │         ◄── processa pagamento (Kafka)
+  ├─ navega /tracking/{id}    │
+  │                           │
+  └─ polling GET /v1/pedidos/{id} a cada 5s
+```
+
+> Para mais detalhes e comandos de emulador, consulte [`mobile/quickstart.md`](mobile/quickstart.md).
 
 ---
 
@@ -482,7 +564,7 @@ mvn -pl ms-ia-suporte quarkus:dev     # :8083
 mvn -pl mcp-florinda-server quarkus:dev # :8085
 ```
 
-### 3. Frontend
+### 3. Frontend Web
 
 ```powershell
 cd frontend
@@ -490,10 +572,31 @@ npm install
 npm run dev   # :3001
 ```
 
-### 4. Acesse
+### 4. Mobile Flutter
+
+```bash
+cd mobile
+
+# Instalar dependências
+flutter pub get
+
+# Iniciar o emulador Android
+flutter emulators --launch Pixel8_API35
+
+# Rodar no emulador (host 10.0.2.2 já apontado para o backend local)
+flutter run -d emulator-5554
+
+# Ou rodar no browser (alterar _host para 'localhost' em constants.dart)
+flutter run -d chrome
+```
+
+> Guia completo com todos os comandos de emulador: [`mobile/quickstart.md`](mobile/quickstart.md)
+
+### 5. Acesse
 
 | Interface | URL |
 |---|---|
+| 📱 Mobile App | Emulador Android / Dispositivo físico |
 | 🖥️ Frontend App | http://localhost:3001 |
 | 📚 Swagger Catálogo | http://localhost:8082/swagger-ui |
 | 📚 Swagger Pedidos | http://localhost:8080/swagger-ui |

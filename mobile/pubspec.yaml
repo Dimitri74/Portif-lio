@@ -1,0 +1,46 @@
+name: florinda_eats
+description: "Florinda Eats - App mobile de pedidos"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # HTTP
+  dio: ^5.4.0
+
+  # Estado
+  provider: ^6.1.2
+
+  # Navegação
+  go_router: ^13.0.0
+
+  # Imagens com cache
+  cached_network_image: ^3.3.1
+
+  # Formatação de moeda e datas
+  intl: ^0.19.0
+
+  # Persistência local (carrinho, sessaoId IA)
+  shared_preferences: ^2.2.3
+
+  # UUID para sessaoId do chat
+  uuid: ^4.3.3
+
+  # Animações
+  flutter_animate: ^4.5.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
